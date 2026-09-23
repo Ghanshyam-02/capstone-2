@@ -46,7 +46,7 @@ docker_build:
     - echo "Deploy $IMAGE to $CI_ENVIRONMENT_NAME (e.g. kubectl set image / az containerapp update)"
     - echo "Env config comes from GitLab variables scoped to $CI_ENVIRONMENT_NAME (SNOWFLAKE_DATABASE=SETTLEMENT_DB_$CI_ENVIRONMENT_NAME ...)"
     - curl --fail --retry 10 --retry-delay 6 "$APP_URL/health"                       # health check
-    - 'curl --fail -H "X-API-Key: $API_KEY" "$APP_URL/api/v1/data-range"'           # smoke test
+    - 'curl --fail -H "X-API-Key: $API_KEY" "$APP_URL/api/v1/merchant-exceptions"'           # smoke test
 
 deploy_dev:
   extends: .deploy

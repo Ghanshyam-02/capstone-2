@@ -1,37 +1,37 @@
-# Step-by-step guide (beginner friendly)
+# Step-by-step guide with theory
 
-Every phase has three parts:
-- **Theory** – what we are doing and why (this is what you explain in a review or interview)
-- **Do it** – the exact commands
-- **Check** – what you should see before moving on
+Each phase has:
+- **Theory to learn**: the ideas behind the step (what you explain in a review or interview)
+- **Steps**: the exact commands
+- **Check**: what you should see before moving on
 
-Commands are for **Windows PowerShell** (inside VS Code: *Terminal → New Terminal*).
-On macOS/Linux use `source .venv/bin/activate` instead of `.venv\Scripts\activate`.
+Commands are for **Windows PowerShell** (in VS Code: *Terminal → New Terminal*).
 
-| Phase | Covers brief task | Time |
-|---|---|---|
-| 0. Clone & Python setup | – | 10 min |
-| 1. Snowflake setup | – | 25 min |
-| 2. Read the specification | Task 1 | 15 min |
-| 3. Generate the data | – | 5 min |
-| 4. Run the pipeline (Bronze → Silver → Gold) | Task 2 | 30 min |
-| 5. Incremental run | Task 2 | 10 min |
-| 6. API | Task 3A/B | 20 min |
-| 7. Dashboard | Task 3C | 10 min |
-| 8. Tests | Task 4A/B/C | 20 min |
-| 9. Security review | Task 4D | 10 min |
-| 10. Docker | Task 4E | 20 min |
-| 11. CI/CD & deployment design | Task 4E | 15 min |
+| Phase | Brief task |
+|---|---|
+| 0. Set up Python | – |
+| 1. Set up Snowflake | – |
+| 2. Specification | Task 1 |
+| 3. Generate the data | – |
+| 4. Data model | Task 2 |
+| 5. Pipeline: Bronze → Silver → Gold | Task 2 |
+| 6. Incremental processing | Task 2 |
+| 7. API | Task 3 A/B |
+| 8. Dashboard | Task 3 C |
+| 9. Testing | Task 4 A/B/C |
+| 10. Security | Task 4 D |
+| 11. Docker & deployment | Task 4 E |
 
 ---
 
-## Phase 0 – Clone the project and set up Python
+## Phase 0: Set up Python
 
-**Theory.** A *virtual environment* (`.venv`) is a private folder of Python libraries for this project only,
-so versions never clash with other projects. `requirements.txt` lists what the app needs;
-`requirements-dev.txt` adds testing/security tools.
+### Theory to learn
+- **Virtual environment (`.venv`)**: a private folder of libraries for one project, so versions never clash with other projects.
+- **`requirements.txt`**: the list of libraries the project needs. Anyone can install exactly the same set with one command.
+- **`.env` file**: settings and secrets (account name, keys) kept **outside** the code. It is git-ignored, so it never reaches GitHub.
 
-**Do it**
+### Steps
 ```powershell
 git clone https://github.com/Ghanshyam-02/capstone-2.git
 cd capstone-2
@@ -39,324 +39,318 @@ python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements-dev.txt
 copy .env.example .env
-code .
 ```
-> If `activate` is blocked: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once, then retry.
+> If `activate` is blocked, run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once.
 
-**Check:** the prompt starts with `(.venv)`, and `pytest tests/unit -q` shows all tests passing.
-(Unit tests need no database – that is the point of them.)
+### Check
+The prompt starts with `(.venv)`. `pytest tests/unit -v` shows all tests passing. Unit tests need no database.
 
 ---
 
-## Phase 1 – Snowflake setup
+## Phase 1: Set up Snowflake
 
-**Theory.**
-- Snowflake separates **storage** (database) from **compute** (warehouse). You pay only while a warehouse
-  runs; `AUTO_SUSPEND = 60` stops it after 60 s idle, so the trial credits last.
-- **Schemas per layer** (BRONZE / SILVER / GOLD / AUDIT) make the medallion architecture visible.
-- **Least privilege:** `PIPELINE_ROLE` can write everything; `API_ROLE` can only read GOLD. If the API were
-  hacked it still could not change or see raw data.
-- **Key-pair authentication:** programs (service users) log in with a private key, not a password.
-  Snowflake keeps only the public key. This is how production systems connect – and Snowflake blocks
-  simple password logins for scripts when MFA is on.
+### Theory to learn
+- **Warehouse vs database**: in Snowflake, *storage* (database) and *compute* (warehouse) are separate. You pay only while the warehouse runs. `AUTO_SUSPEND = 60` switches it off after 60 seconds of idle time, so your trial credits last.
+- **Schema**: a folder inside a database. We use one per layer: `BRONZE`, `SILVER`, `GOLD`, plus `AUDIT` for logs.
+- **Role**: a set of permissions. `PIPELINE_ROLE` can write everything. `API_ROLE` can only *read* Gold. This is the **least privilege** principle: every program gets only the rights it needs.
+- **Key-pair authentication**: programs log in with a *private key* file instead of a password. Snowflake keeps only the matching *public key*. This is the standard way for service accounts (and scripts cannot answer MFA prompts).
 
-**Do it**
-1. **Create a key pair** (in the project folder – Git Bash has `openssl`; on Windows open *Git Bash* here):
+### Steps
+1. **Create the key pair.** Open *Git Bash* in the project folder:
    ```bash
    openssl genrsa 2048 | openssl pkcs8 -topk8 -inform PEM -out keys/rsa_key.p8 -nocrypt
    openssl rsa -in keys/rsa_key.p8 -pubout -out keys/rsa_key.pub
    cat keys/rsa_key.pub
    ```
-   `keys/` is git-ignored – the private key never goes to GitHub.
-2. **Run the setup SQL:** Snowsight → *Projects → Worksheets → +* → paste `sql/00_setup.sql`.
-   Replace `PASTE_YOUR_PUBLIC_KEY_HERE` with the text between the `BEGIN/END PUBLIC KEY` lines (one line,
-   no line breaks). Select all → **Run All** (Ctrl+Shift+Enter).
-3. **Find your account identifier:** Snowsight → bottom-left your name → *Account* → *View account details*
-   → copy **Account identifier** (looks like `ABCDEFG-XY12345`).
-4. **Edit `.env`:** set `SNOWFLAKE_ACCOUNT` to that value. Generate an API key and paste it into `API_KEY`:
-   ```powershell
-   python -c "import secrets; print(secrets.token_urlsafe(32))"
-   ```
+2. **Run the setup SQL.** In Snowsight open *Projects → Worksheets → +* and paste `sql/00_setup.sql`. Replace `PASTE_YOUR_PUBLIC_KEY_HERE` with the text between the BEGIN/END lines of the public key, all on one line. Then click **Run All**.
+3. **Find your account identifier.** In Snowsight, click your name (bottom-left), then *Account → View account details*, and copy the **Account identifier**.
+4. **Fill in `.env`.**
+   - Set `SNOWFLAKE_ACCOUNT` to the account identifier.
+   - Set `API_KEY` to the output of:
+     ```powershell
+     python -c "import secrets; print(secrets.token_urlsafe(32))"
+     ```
 5. **Test the connection:**
    ```powershell
    python -m common.snowflake_conn
    ```
 
-**Check:** two lines `Connected OK -> user=SETTLE_SVC role=PIPELINE_ROLE ...` and `... role=API_ROLE ...`.
-If you get `JWT token is invalid`, the public key in Snowflake does not match – re-run
-`ALTER USER SETTLE_SVC SET RSA_PUBLIC_KEY='...';`.
+### Check
+Two lines print: `Connected OK -> ... role=PIPELINE_ROLE` and `... role=API_ROLE`.
 
 ---
 
-## Phase 2 – Read the specification (Task 1)
+## Phase 2: Specification (Task 1)
 
-**Theory.** In industry nobody writes code before the *what* is agreed. The spec defines KPIs, rules and
-"done". The Gherkin scenarios are acceptance tests written in plain English that business people can read.
+### Theory to learn
+- **Specification first**: agree on *what* to build (KPIs, rules, "done") before writing code. It avoids building the wrong thing.
+- **Business spec vs technical spec**: the business spec says *what and why* (problem, users, KPIs, rules). The technical spec says *how* (sources, storage, API, validation, monitoring, security).
+- **Acceptance criteria**: testable statements of "done".
+- **Gherkin (Given / When / Then)**: acceptance tests written in plain English that business people can read:
+  - *Given* is the starting situation
+  - *When* is the action
+  - *Then* is the expected result
+- **Data-quality classes**: the brief asks you to decide which class each bad record belongs to:
 
-**Do it** – read, in this order (they are short):
-1. `docs/01_business_spec.md` – problem, users, KPIs, assumptions, **how each bad record is classified**
-2. `docs/02_technical_spec.md` – architecture, processing, API, monitoring
-3. `docs/03_acceptance.feature` – 7 Gherkin scenarios
-4. `docs/04_data_model.md` – grain of every table
+  | Class | Meaning | Example |
+  |---|---|---|
+  | Reject | unusable, drop and log | no id, unreadable date, duplicate event |
+  | Quarantine | suspicious, hold for a human | missing merchant, invalid currency, negative settlement, orphan settlement |
+  | Warning | usable but notable, keep and log | late event |
+  | Business exception | data is fine, the *business outcome* is bad | successful payment never settled |
 
-**Check:** you can answer: *"What is the difference between a quarantined record and a business exception?"*
-(Quarantine = the data is wrong, held back. Business exception = the data is right, but the business
-outcome is bad, e.g. a successful payment that was never settled.)
+### Steps
+Read `docs/01_business_spec.md`, `docs/02_technical_spec.md` and `docs/03_acceptance.feature`.
+
+### Check
+You can explain why a negative settlement is *quarantined* (it may be a refund, so a human should decide) rather than *rejected*.
 
 ---
 
-## Phase 3 – Generate the data
+## Phase 3: Generate the data
 
-**Theory.** The brief gives column lists but no files, so `pipeline/generate_data.py` creates small,
-realistic CSVs and **plants every hidden problem** on purpose. A fixed random seed means you get the same
-data every time.
+### Theory to learn
+- **Synthetic test data**: the brief gives only column lists, so we generate realistic CSVs. Every hidden problem is planted **on purpose**, so we can prove the pipeline handles it.
+- **Fixed random seed**: the same "random" data every run, so results are repeatable.
 
-| Planted problem | Example in the data |
+| Hidden problem | Where it is in the data |
 |---|---|
-| One-to-many settlement | `T1001` = 10,000 settled as 8,000 + 2,000 (plus ~10 % random splits) |
-| Late events | `E1LATE01`: event 10:02:15, ingested 10:08:41; ~5 % of others |
-| Out-of-order events | event rows shuffled; T1001's arrive SETTLED → AUTHORIZED → CREATED |
-| Merchant risk history | M100 LOW→HIGH→MEDIUM (the brief); M101 LOW→HIGH on 4 Sep (inside our data) |
-| Missing / unknown merchant | 3 blank merchant ids, 1 `M999` |
-| Invalid currency | `XYZ`, blank; `" inr "` is messy-but-valid |
-| Negative settlement | 2 × −500 |
-| Settlement without transaction | `T199998`, `T199999` |
-| Duplicate event ids | 5 duplicates |
-| Unreadable timestamp | `2026-09-31 25:61:00` |
-| Abnormal merchants | M104, M108 (often unsettled), M110 (settles late → SLA breach) |
+| One-to-many settlement | `T1001`: 10,000 settled as 8,000 + 2,000 |
+| Late event | `E1LATE01`: happened 10:02:15, received 10:08:41 |
+| Out-of-order events | rows shuffled. T1001 arrives SETTLED → AUTHORIZED → CREATED |
+| Risk history | M100 LOW → HIGH → MEDIUM. M101 LOW → HIGH on 4 Sep |
+| Missing merchant, invalid currency, negative settlement, orphan settlement, duplicate events | a few rows of each |
 
-**Do it**
+### Steps
 ```powershell
 python -m pipeline.generate_data --batch 1
 ```
-**Check:** 4 files in `data/raw/`. Open `transactions_001.csv` in Excel and find a blank merchant id.
+
+### Check
+4 CSV files appear in `data/raw/`. Open `transactions_001.csv` and find a row with an empty merchant_id.
 
 ---
 
-## Phase 4 – Run the pipeline: Bronze → Silver → Gold (Task 2)
+## Phase 4: Data model (Task 2)
 
-### Theory – the medallion layers
-| Layer | Question it answers | Rule |
-|---|---|---|
-| **Bronze** | "What exactly did we receive?" | Load everything as text. Never reject. Add `SOURCE_FILE`, `LOAD_TS`. You can always replay. |
-| **Silver** | "Which data can we trust?" | Validate, clean, type, de-duplicate. Bad rows → `AUDIT.DQ_LOG` with a reason (never silently dropped). |
-| **Gold** | "What does the business need?" | Star schema + KPI table, business logic (settlement roll-up, SLA, risk as of date). |
+### Theory to learn
+- **Star schema**: *fact* tables in the middle (events you measure: transactions, settlements) and *dimension* tables around them (who/what/when: merchant, customer, date). Simple joins, fast reports.
+- **Grain**: what **one row** of a table means. It is the most important decision in a model, and the brief makes it mandatory:
+  - `FACT_TRANSACTION`: one payment attempt
+  - `FACT_SETTLEMENT`: one settlement record
+  - `FACT_PAYMENT_EVENT`: one lifecycle event
+  - `DIM_MERCHANT`: one merchant per risk period
+- **Primary key / foreign key**: a PK identifies a row uniquely. An FK points to a row in another table (a transaction points to its merchant).
+- **Surrogate key**: an internal number (`MERCHANT_SK`) used instead of the business id, because one merchant id now has several history rows.
+- **SCD Type 2 (Slowly Changing Dimension)**: keep **history**. Every time the risk level changes, add a new row with `EFFECTIVE_FROM` / `EFFECTIVE_TO`. A February transaction joins to the row valid in February.
+- **One-to-many trap**: if you join a transaction (10,000) to its 2 settlements, the 10,000 appears twice, so the total becomes 20,000. The fix is to **sum settlements per transaction first**, then join (`GOLD.V_TXN_SETTLEMENT`).
+- **Snowflake specifics**:
+  - PK/FK are *declared but not enforced* (only NOT NULL is), so tests must prove them.
+  - There are *no indexes*. Snowflake prunes data automatically, and large tables use clustering keys.
 
-### Theory – how each hidden problem is solved
-1. **One-to-many settlement** – `GOLD.V_TXN_SETTLEMENT` first **sums settlements per transaction**, then
-   joins. A direct join repeats the 10,000 transaction twice (= 20,000). See query D in
-   `sql/05_explore_checks.sql` for the wrong result side by side.
-2. **Late events** – we keep **both** times. `EVENT_TS` = business time (reports, ordering).
-   `INGESTION_TS` = processing time (lateness: `IS_LATE`, `INGESTION_DELAY_SEC`).
-3. **Out-of-order events** – `EVENT_SEQ = ROW_NUMBER() OVER (PARTITION BY transaction ORDER BY EVENT_TS)`.
-   File order is ignored.
-4. **Risk history (SCD Type 2)** – `DIM_MERCHANT` has one row per risk period with
-   `EFFECTIVE_FROM/TO`. The fact joins on `transaction_date BETWEEN effective_from AND effective_to`
-   and stores the risk that was valid that day.
-5. **Data quality** – `pipeline/rules.py` decides OK / WARNING / QUARANTINE / REJECT per row.
+### Steps
+Read `docs/04_data_model.md`, then the DDL files `sql/01_*.sql`, `sql/02_*.sql` and `sql/03_*.sql`. Every table has its grain written above it.
 
-### Theory – Snowflake specifics
-- **Stage + COPY:** `PUT` uploads a file into an internal stage (a folder inside Snowflake); `COPY INTO`
-  loads it into a table. COPY **remembers loaded files** and skips them next time → incremental ingestion.
-- **PK/FK are not enforced** in Snowflake (only NOT NULL). We declare them for documentation and
-  **prove** them with tests.
-- **No indexes** – Snowflake prunes micro-partitions automatically; big tables use clustering keys.
-- **MERGE** = insert new rows, update changed rows, in one statement → re-running is safe (*idempotent*).
+### Check
+You can draw the star: DIM_DATE, DIM_MERCHANT and DIM_CUSTOMER around FACT_TRANSACTION, with FACT_SETTLEMENT and FACT_PAYMENT_EVENT hanging off it.
 
-### Do it
+---
+
+## Phase 5: Pipeline, Bronze → Silver → Gold (Task 2)
+
+### Theory to learn
+- **Medallion architecture**:
+
+  | Layer | Question | Rule |
+  |---|---|---|
+  | Bronze | What did we receive? | load everything as text, never reject, add source file + load time |
+  | Silver | What can we trust? | validate, clean, remove duplicates, convert types. Bad rows go to `AUDIT.DQ_LOG` |
+  | Gold | What does the business need? | star schema + KPI table |
+
+  The brief's steps map onto it: *Raw → Validation → Clean → Business transformation → Gold*.
+- **Stage, PUT and COPY**: a *stage* is a folder inside Snowflake. `PUT` uploads a file into it. `COPY INTO` loads it into a table.
+- **MERGE (upsert)**: in one statement, *insert* new rows and *update* existing ones. Running it twice gives the same result, which is called **idempotent**.
+- **Transaction (BEGIN / COMMIT)**: several statements that succeed or fail **together**. Silver data, the DQ log and the watermark are committed together.
+- **Business time vs processing time**:
+  - `event_ts` is when it *happened*. It is used for reports and ordering.
+  - `ingestion_ts` is when *we received it*. It is used to detect late events.
+- **Out-of-order events**: the arrival order is not the real order. `EVENT_SEQ = ROW_NUMBER() OVER (PARTITION BY transaction ORDER BY event_ts)` restores the real sequence.
+- **"Invalid records should not silently disappear"**: every rejected or quarantined row is written to `AUDIT.DQ_LOG` with its reason.
+
+### Steps
 ```powershell
 python -m pipeline.run_pipeline --init
 ```
-`--init` creates all tables and views (only needed the first time or after you change the DDL).
+(`--init` creates the tables. You only need it the first time.)
 
-**Check:** the output looks like
-```
-1) INGESTION -> BRONZE
-  [bronze] merchant/merchant_001.csv.gz: LOADED, 15/15 rows loaded
-  ...
-2) BRONZE -> SILVER (validate / clean / de-duplicate)
-  [silver] transactions    read= 176 loaded= 170 quarantined=  6 rejected=  0 warnings=  0
-  ...
-3) SILVER -> GOLD (star schema + KPI table)
-Done. ...
-```
-Now open Snowsight, paste `sql/05_explore_checks.sql` and run the queries **one by one** (set the role
-to `SYSADMIN` at the top of the worksheet). Look at: the DQ log (C), T1001 (D), late events (E), M101's
-risk switching on 4 Sep (F), and the gap breakdown (G) – that last query **answers the Head of
-Payments' question**.
+Then in Snowsight run the queries in `sql/05_explore_checks.sql` one by one:
+- **C**: the data-quality log
+- **D**: T1001, and the wrong-join demo
+- **E**: late events
+- **F**: M101's risk changing on 4 Sep
+- **G**: *why is there a gap?*
+
+### Check
+The pipeline prints something like `[silver] transactions read= 176 loaded= 170 quarantined= 6 ...`, and query D shows T1001 settled = 10,000, not 20,000.
 
 ---
 
-## Phase 5 – Incremental processing
+## Phase 6: Incremental processing (Task 2)
 
-**Theory.** Reprocessing everything every run is slow and expensive. Three mechanisms keep it incremental:
-1. **COPY load history** – a file is loaded into Bronze only once.
-2. **Watermarks** (`AUDIT.WATERMARK`) – Silver reads only Bronze rows with `LOAD_TS` > last watermark.
-   Gold reads only Silver rows with `LOADED_AT` > Gold watermark. Data and watermark are committed in
-   the **same transaction**, so a crash can never skip or double-load rows.
-3. **Affected dates** – `AGG_MERCHANT_DAILY` is rebuilt only for dates that received new rows.
+### Theory to learn
+- **Incremental vs full reload**: processing only *new* data is faster and cheaper than reprocessing everything on every run.
+- **COPY load history**: Snowflake remembers which files it already loaded and skips them.
+- **Watermark**: a saved "last processed" timestamp (`AUDIT.WATERMARK`). Each run reads only rows newer than the watermark, then moves it forward.
+- **Partial recalculation**: the KPI table is recalculated only for the dates that received new data.
 
-Batch 2 contains a new day (8 Sep) **plus** 4 settlements from batch 1 that changed PENDING → SETTLED
-(same settlement id) and a duplicate of an old event.
-
-**Do it**
+### Steps
 ```powershell
-python -m pipeline.run_pipeline            # nothing new -> 0 files, 0 rows
+python -m pipeline.run_pipeline
 python -m pipeline.generate_data --batch 2
-python -m pipeline.run_pipeline            # only batch 2 is processed
+python -m pipeline.run_pipeline
 ```
-**Check:** the first run loads 0 files. The second loads only `*_002.csv`. In Snowsight:
-`SELECT * FROM AUDIT.WATERMARK;` and `SELECT * FROM AUDIT.PIPELINE_RUNS ORDER BY STARTED_AT DESC;`.
-The old dates' settlement rate went up (the pending settlements were completed).
 
-> Want to start from zero? Run `sql/99_reset.sql` in Snowsight, then the pipeline again.
+### Check
+- The first run loads **0 new files**.
+- After batch 2, only the `*_002.csv` files load.
+- Batch 2 also turns 4 PENDING settlements from batch 1 into SETTLED, so the old days' settlement rate goes up.
+- Look at `SELECT * FROM AUDIT.WATERMARK;` and `SELECT * FROM AUDIT.PIPELINE_RUNS;`
 
 ---
 
-## Phase 6 – API (Task 3A/B)
+## Phase 7: API (Task 3 A/B)
 
-**Theory.**
-- **FastAPI** turns Python functions into HTTP endpoints. **Pydantic** models (`api/models.py`) define the
-  exact response shape and validate it (e.g. `settlement_rate` must be 0–100). FastAPI generates the
-  **OpenAPI** documentation automatically at `/docs`.
-- **Layers inside the API:** `main.py` (HTTP + validation) → `common/kpi.py` (formulas) →
-  `repository.py` (the only code that runs SQL). This separation lets tests replace the database with a fake.
-- The API reads the small `AGG_MERCHANT_DAILY` table, so answers take milliseconds.
-- **Status codes:** 200 OK · 400 bad date/range · 401 no/wrong API key · 404 unknown merchant ·
-  422 invalid parameter (bad merchant format, missing parameter).
+### Theory to learn
+- **REST API**: programs ask for data over HTTP (`GET /api/v1/settlement-summary?start_date=...`) and get JSON back.
+- **FastAPI**: a Python framework. A decorated function becomes an endpoint.
+- **Pydantic**: defines the exact shape of the response (the *contract*) and validates it. For example, `settlement_rate` must be between 0 and 100.
+- **OpenAPI**: machine-readable API documentation. FastAPI generates it automatically at `/docs`.
+- **HTTP status codes**:
 
-**Do it**
+  | Code | Meaning |
+  |---|---|
+  | 200 | OK |
+  | 400 | bad request (invalid date) |
+  | 401 | not logged in (missing or wrong API key) |
+  | 404 | not found (unknown merchant) |
+  | 422 | invalid parameter format |
+
+- **Repository pattern**: all SQL lives in `api/repository.py`. The endpoints never write SQL, and tests can swap in a fake repository.
+- **Pre-aggregation**: the API reads the small `AGG_MERCHANT_DAILY` table, so it answers in milliseconds.
+
+### Steps
 ```powershell
 uvicorn api.main:app --reload
 ```
-Open http://localhost:8000/docs to see the generated OpenAPI documentation of every endpoint.
-Every `/api/v1` call needs the `X-API-Key` header, so test them from a **second terminal**:
+Open http://localhost:8000/docs. In a **second** terminal:
 ```powershell
-$h = @{ "X-API-Key" = "<your API_KEY from .env>" }
+$h = @{ "X-API-Key" = "<API_KEY from your .env>" }
 Invoke-RestMethod "http://localhost:8000/api/v1/settlement-summary?start_date=2026-09-01&end_date=2026-09-08" -Headers $h
 Invoke-RestMethod "http://localhost:8000/api/v1/merchant-exceptions" -Headers $h
-Invoke-RestMethod "http://localhost:8000/api/v1/settlement-summary?start_date=2026-09-01&end_date=2026-09-08&merchant_id=M999" -Headers $h   # 404
 ```
-**Check:** the summary has `transaction_count`, `transaction_amount`, `settled_amount`, `settlement_rate`,
-`settlement_gap`, `sla_rate`. Exceptions include M104, M108 (HIGH risk) and M110 (low SLA).
+
+### Check
+The summary has the 6 fields from the brief, plus `merchant_risk_count` (KPI 5). The exceptions list includes M104 and M108 (HIGH risk) and M110 (slow settlement).
 
 ---
 
-## Phase 7 – Dashboard (Task 3C)
+## Phase 8: Dashboard (Task 3 C)
 
-**Theory.** The dashboard is one HTML file with JavaScript. It calls the API with `fetch()` and draws
-charts with Chart.js. It **never reads CSV or Snowflake directly** – the API is the single source of
-truth, so every consumer sees the same numbers and the same security rules apply.
-FastAPI serves the file from the same address (`/`), so no CORS setup is needed.
+### Theory to learn
+- **Front-end consumes the API**: the page never reads CSVs or the database. There is one source of truth, so every user sees the same numbers and the same security rules apply.
+- **`fetch()`**: the JavaScript function that calls the API.
+- **Chart.js**: a library that draws charts from arrays of numbers.
+- **Same origin**: FastAPI serves the HTML itself (at `/`), so the browser needs no extra CORS setup.
 
-**Do it:** with uvicorn running, open http://localhost:8000/ → paste your API key → **Load**.
+### Steps
+With uvicorn running, open http://localhost:8000/, paste your API key, and click **Load**.
 
-**Check:** 6 KPI cards, the daily line chart, top-10 gap bar chart, merchant table (exceptions have a red
-edge), the "why is there a gap?" table and the data-quality table.
+### Check
+You see the KPI cards, the daily transaction vs settlement chart, the top-10 gap chart, and the merchant table. Bad values are shown in red.
 
 ---
 
-## Phase 8 – Tests (Task 4A/B/C)
+## Phase 9: Testing (Task 4 A/B/C)
 
-**Theory – the test pyramid**
-| Type | Folder | Needs Snowflake? | What it proves |
-|---|---|---|---|
-| Unit (TDD) | `tests/unit` | No | each rule: success, failed, duplicate, missing merchant, unmatched/negative settlement, late event, settlement calculation, risk as-of |
-| API contract | `tests/api` | No (fake repository) | 200 / 400 / 401 / 404 / 422, rate between 0 and 100, response shape |
-| Data model | `tests/data_model` | **Yes** | grain (no duplicate keys), referential integrity, reconciliation (successful = settled + gap), T1001 counted once, point-in-time risk |
+### Theory to learn
+- **Unit test**: tests one small function in isolation (e.g. "a negative settlement is quarantined"). Fast, and needs no database.
+- **TDD (Test-Driven Development)**: write the test first, see it fail, write the code, see it pass. The tests then protect you when you change code later.
+- **Contract test**: checks the API keeps its promise (status codes, fields, 0 ≤ rate ≤ 100). It uses a **fake** (mock) repository instead of Snowflake.
+- **Data-model tests**: run SQL on the real tables:
+  - *grain*: no duplicate keys
+  - *referential integrity*: no transaction points to a missing merchant
+  - *reconciliation*: successful = settled + unsettled
 
-Fast tests run on every commit; database tests run after the pipeline. Because Snowflake does not
-enforce PK/FK, the data-model tests are the real guarantee.
+  Because Snowflake does not enforce keys, these tests are the proof.
 
-**Do it**
+### Steps
 ```powershell
-pytest -v                                                   # unit + API (data-model tests are skipped)
-$env:RUN_SNOWFLAKE_TESTS="1"; pytest tests/data_model -v    # against Snowflake
+pytest -v
+$env:RUN_SNOWFLAKE_TESTS="1"; pytest tests/data_model -v
 ```
-**Check:** everything green. Try breaking something (e.g. change `SLA_SECONDS` in `pipeline/rules.py`)
-and watch a test fail – that is TDD's safety net.
+
+### Check
+Everything is green. Try changing `SLA_SECONDS` in `pipeline/rules.py` and watch a test fail. That is the safety net working.
 
 ---
 
-## Phase 9 – Security review (Task 4D)
+## Phase 10: Security (Task 4 D)
 
-**Theory.** Read `docs/05_security.md` – a table of each risk from the brief and where it is handled.
-The key one is **SQL injection**:
-```python
-# BAD - the brief's example. merchant_id = "x' OR '1'='1" returns every merchant
-query = f"SELECT * FROM transactions WHERE merchant_id = '{merchant_id}'"
+### Theory to learn
+- **SQL injection**: if user input is pasted into SQL text, an attacker can send `x' OR '1'='1` and read every row. The fix is **bind parameters**: `execute("... WHERE MERCHANT_ID = %s", (merchant_id,))`. The value is sent separately and is never treated as SQL.
+- **Input validation**: `merchant_id` must match `^M\d{3,6}$`, or the API returns 422 before any SQL runs.
+- **Authentication vs authorization**:
+  - *Authentication* is **who** you are (the API key).
+  - *Authorization* is **what** you may do (`API_ROLE` can only read Gold).
+- **Secrets management**: no passwords in code. Use `.env` locally and CI variables in pipelines, and keep both out of Git and Docker images.
+- **PII (personal data)**: store only a hash of customer ids, never return them from the API, and mask them in logs.
+- **Minimal logging**: log what happened (endpoint, status, row counts), never the data itself.
 
-# GOOD - value sent separately from the SQL text (bind parameter), plus strict format validation
-cur.execute("SELECT ... WHERE MERCHANT_ID = %s", (merchant_id,))
-```
-**Do it:** run the injection attempt – it is rejected before reaching the database:
+### Steps
+Read `docs/05_security.md`, then try the injection attack (it returns 422):
 ```powershell
 Invoke-RestMethod "http://localhost:8000/api/v1/settlement-summary?start_date=2026-09-01&end_date=2026-09-08&merchant_id=M100'%20OR%20'1'='1" -Headers $h
 ```
-And run the static security scanner:
-```powershell
-bandit -r api common pipeline -ll
-```
-**Check:** 422 for the injection; Bandit reports no medium/high issues.
+
+### Check
+You can point to where each of the brief's 6 risks is handled.
 
 ---
 
-## Phase 10 – Docker (Task 4E)
+## Phase 11: Docker & deployment (Task 4 E)
 
-**Theory.**
-- An **image** is a packaged app: OS + Python + libraries + code. A **container** is a running image.
-  "Works on my machine" problems disappear because every environment runs the same image.
-- `Dockerfile` steps: base image → install requirements (cached layer) → copy code → run as non-root →
-  health check → start uvicorn.
-- **Secrets are never inside the image.** They are passed when the container starts (`--env-file`)
-  and the private key is mounted read-only (`-v ...:ro`). `.dockerignore` keeps `.env`, keys and data out.
+### Theory to learn
+- **Docker image vs container**:
+  - An *image* is a packaged app (OS + Python + libraries + code).
+  - A *container* is a running image.
+  - The same image runs identically on a laptop, in TEST and in PROD.
+- **Dockerfile layers**: install requirements first and copy the code after, so rebuilding after a code change is fast.
+- **Never bake secrets into images**: pass them in at start (`--env-file`) and mount the key read-only.
+- **CI/CD**:
+  - *Continuous Integration* runs tests, SAST (code security scan), a dependency scan and the Docker build on every push.
+  - *Continuous Delivery* promotes the same image DEV → TEST → PROD, with manual approval for TEST and PROD.
+- **Environment configuration**: one image, with different settings per environment (e.g. `SETTLEMENT_DB_DEV` / `_PROD`).
+- **Health check**: `/health` tells the platform whether the app is alive.
+- **Smoke test**: one quick real call after each deploy.
+- **Rollback**: each commit has its own image tag, so going back means redeploying the previous tag. On the data side, Snowflake *Time Travel* can restore a table.
 
-**Do it** (Docker Desktop running)
+### Steps (on a machine with Docker Desktop)
 ```powershell
 docker build -t settlement-api:1.0 .
 docker run -p 8000:8000 --env-file .env -v "${PWD}/keys:/app/keys:ro" settlement-api:1.0
 ```
-(stop uvicorn first if it is still using port 8000)
+Read `docs/06_deployment.md` and `.gitlab-ci.yml` (the brief's GitLab design).
 
-**Check:** http://localhost:8000/ works exactly as before. `docker ps` shows the container as `(healthy)`
-after ~30 s.
-
----
-
-## Phase 11 – CI/CD and deployment design (Task 4E)
-
-**Theory.**
-- **CI (continuous integration):** on every push a server runs tests, a SAST scan (Bandit / GitLab SAST),
-  a dependency scan (pip-audit) and builds the Docker image. Broken code never reaches an environment.
-- **CD (continuous delivery):** the same image moves DEV → TEST → PROD. TEST and PROD need a manual click
-  (approval). Only configuration differs per environment.
-- **Health check, smoke test, rollback** – see `docs/06_deployment.md`.
-
-**Do it**
-- GitHub already runs `.github/workflows/ci.yml` on every push → open the repo's **Actions** tab.
-- Read `.gitlab-ci.yml` – the brief's GitLab design (tests → SAST → dependency scan → docker build →
-  DEV → TEST → PROD + rollback job).
-
-**Check:** a green tick next to your latest commit on GitHub.
+### Check
+http://localhost:8000/ works from inside the container, and `docker ps` shows `(healthy)`.
 
 ---
-
-## How to present it (2-minute story)
-1. **Problem:** ₹2.2 Cr gap, nobody knows why.
-2. **Architecture:** CSV → Bronze (raw) → Silver (trusted) → Gold (business) → API → dashboard, on Snowflake.
-3. **Hidden problems** and the fix for each (one-to-many, late, out-of-order, SCD2 risk, DQ classes).
-4. **Answer:** the gap-breakdown shows how much is pending, failed, partially settled or never settled,
-   and the exceptions list shows which merchants cause it.
-5. **Engineering:** incremental loads, nothing silently dropped, tests (unit/API/data model),
-   least-privilege roles, parameterised SQL, Docker + CI/CD with rollback.
 
 ## Troubleshooting
 | Error | Fix |
 |---|---|
-| `Missing required environment variable` | `.env` not filled in / not in project root |
-| `JWT token is invalid` | public key in Snowflake ≠ your `keys/rsa_key.p8` → `ALTER USER SETTLE_SVC SET RSA_PUBLIC_KEY='...'` |
-| `Object does not exist or not authorized` | run `sql/00_setup.sql` fully; run the pipeline with `--init` |
-| `No active warehouse` | `SNOWFLAKE_WAREHOUSE=SETTLE_WH` in `.env` |
-| Dashboard: `401` | paste the same `API_KEY` as in `.env` |
-| Dashboard empty | run the pipeline first; check `GET /api/v1/data-range` |
-| `docker: port is already allocated` | stop uvicorn (Ctrl+C) or use `-p 8001:8000` |
+| `Missing required environment variable` | fill in `.env` in the project root |
+| `JWT token is invalid` | public key in Snowflake ≠ your private key. Run `ALTER USER SETTLE_SVC SET RSA_PUBLIC_KEY='...'` |
+| `Object does not exist or not authorized` | run all of `sql/00_setup.sql`, then the pipeline with `--init` |
+| Dashboard shows `401` | paste the same `API_KEY` that is in `.env` |
+| Start from zero | run `sql/99_reset.sql` in Snowsight, then the pipeline again |

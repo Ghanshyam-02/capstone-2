@@ -1,15 +1,10 @@
-"""BRONZE -> SILVER: validate, clean, de-duplicate, type.
+"""BRONZE -> SILVER: validate, clean, remove duplicates, convert types.
 
-Security note: table/column names in the SQL below come from the constant
-dictionaries in this file (never from user input), which is why the f-strings
-are marked `# nosec B608`. All VALUES are passed as bind parameters (%s).
-
-For each source:
-  1. read only NEW Bronze rows (LOAD_TS > watermark)            -> incremental
-  2. run the rules in pipeline/rules.py on every row
-  3. good rows  -> MERGE into SILVER (upsert, safe to re-run)
-     bad rows   -> AUDIT.DQ_LOG with severity + reason            -> nothing disappears
-  4. move the watermark forward - in the SAME transaction as the data
+For each source file type:
+  1. read only NEW Bronze rows (LOAD_TS newer than the watermark)   -> incremental
+  2. check every row with pipeline/rules.py
+  3. good rows -> MERGE into Silver     bad rows -> AUDIT.DQ_LOG      -> nothing disappears
+  4. move the watermark forward
 """
 import json
 
@@ -18,142 +13,103 @@ import snowflake.connector
 from common import config
 from pipeline import rules
 from pipeline.generate_data import COLUMNS
-from pipeline.ingest import SOURCES, bronze_table
 
+SOURCES = ["merchant", "transactions", "settlements", "payment_events"]   # order matters
 KEYS = {"merchant": ["merchant_id", "effective_from"], "transactions": ["transaction_id"],
         "settlements": ["settlement_id"], "payment_events": ["event_id"]}
 SILVER_COLUMNS = {
-    "merchant": ["merchant_id", "merchant_name", "merchant_category", "country", "risk_level",
-                 "effective_from", "effective_to"],
+    "merchant": COLUMNS["merchant"],
     "transactions": COLUMNS["transactions"],
     "settlements": COLUMNS["settlements"],
-    "payment_events": ["event_id", "transaction_id", "event_type", "event_ts", "ingestion_ts",
-                       "processing_ms", "ingestion_delay_sec", "is_late"],
+    "payment_events": COLUMNS["payment_events"] + ["ingestion_delay_sec", "is_late"],
 }
 
 
-def silver_table(source: str) -> str:
-    return f"SILVER.{source.upper()}"
-
-
-def _mask(raw: dict) -> str:
-    """Raw row for the DQ log, with the customer id masked (PII)."""
-    safe = dict(raw)
-    if safe.get("customer_id"):
-        safe["customer_id"] = "***"
-    return json.dumps(safe, default=str)
-
-
-def _ids(cur, sql: str) -> set[str]:
+def ids(cur, sql) -> set:
     return {row[0] for row in cur.execute(sql).fetchall()}
 
 
-def _validate(source: str, raw_rows: list[dict], cur) -> tuple[list[dict], list[tuple]]:
-    """Returns (rows to load, dq issues as (key, severity, reason, raw))."""
-    issues, results = [], []
+def validate(source: str, raw_rows: list[dict], cur) -> tuple[list[dict], list[tuple]]:
+    """Returns (good rows, problems). A problem = (record id, severity, reason, raw row as JSON)."""
     if source == "merchant":
-        results = [(raw, rules.validate_merchant(raw)) for raw in raw_rows]
+        results = [rules.validate_merchant(r) for r in raw_rows]
     elif source == "transactions":
-        known = _ids(cur, "SELECT DISTINCT MERCHANT_ID FROM SILVER.MERCHANT")
-        results = [(raw, rules.validate_transaction(raw, known)) for raw in raw_rows]
+        merchants = ids(cur, "SELECT MERCHANT_ID FROM SILVER.MERCHANT")
+        results = [rules.validate_transaction(r, merchants) for r in raw_rows]
     elif source == "settlements":
-        known = _ids(cur, "SELECT TRANSACTION_ID FROM SILVER.TRANSACTIONS")
-        results = [(raw, rules.validate_settlement(raw, known)) for raw in raw_rows]
-    elif source == "payment_events":
-        known = _ids(cur, "SELECT TRANSACTION_ID FROM SILVER.TRANSACTIONS")
-        results = [(raw, rules.validate_event(raw, known, config.LATE_EVENT_THRESHOLD_MIN))
-                   for raw in raw_rows]
+        txns = ids(cur, "SELECT TRANSACTION_ID FROM SILVER.TRANSACTIONS")
+        results = [rules.validate_settlement(r, txns) for r in raw_rows]
+    else:
+        txns = ids(cur, "SELECT TRANSACTION_ID FROM SILVER.TRANSACTIONS")
+        results = [rules.validate_event(r, txns, config.LATE_EVENT_THRESHOLD_MIN) for r in raw_rows]
 
     key = KEYS[source][0]
-    good = []
-    for raw, result in results:
+    good, problems = [], []
+    for raw, result in zip(raw_rows, results):
         if result.severity != rules.OK:
-            issues.append((raw.get(key), result.severity, result.reason, _mask(raw)))
+            masked = dict(raw, customer_id="***") if raw.get("customer_id") else raw   # hide PII
+            problems.append((raw.get(key), result.severity, result.reason, json.dumps(masked)))
         if result.keep:
-            result.record["_raw"] = raw
-            result.record["source_file"] = raw.get("source_file")
-            good.append(result.record)
+            good.append(dict(result.record, source_file=raw["source_file"]))
 
-    # Duplicates: events are immutable, so a repeated event_id (in this batch OR an
-    # earlier one) is rejected. For other sources the latest version wins (upsert).
     if source == "payment_events":
-        existing = _ids(cur, "SELECT EVENT_ID FROM SILVER.PAYMENT_EVENTS")
-        good, dups = rules.split_duplicates(good, "event_id", existing, sort_key=lambda r: r["ingestion_ts"])
-        reason = "DUPLICATE_EVENT_ID"
+        # the same event id twice (in this file, or loaded in an earlier run) is a duplicate
+        loaded = ids(cur, "SELECT EVENT_ID FROM SILVER.PAYMENT_EVENTS")
+        good, dups = rules.remove_duplicate_events(good, loaded)
+        problems += [(d["event_id"], rules.REJECT, "DUPLICATE_EVENT_ID", json.dumps(d, default=str))
+                     for d in dups]
     else:
-        keys = KEYS[source]
-        good.reverse()   # keep the LAST occurrence in the batch
-        tagged = [dict(r, _key="|".join(str(r[k]) for k in keys)) for r in good]
-        good, dups = rules.split_duplicates(tagged, "_key")
-        reason = "DUPLICATE_IN_BATCH"
-    for d in dups:
-        issues.append((d[key], rules.REJECT, reason, _mask(d["_raw"])))
-    return good, issues
+        # other sources: if a row is sent again, the latest version wins
+        latest = {tuple(r[k] for k in KEYS[source]): r for r in good}
+        good = list(latest.values())
+    return good, problems
 
 
 def process_source(conn, source: str, run_id: str) -> dict:
     cur = conn.cursor()
-    table, cols, keys = silver_table(source), SILVER_COLUMNS[source], KEYS[source]
-    bronze_cols = COLUMNS[source] + ["source_file"]
+    bronze, silver = f"BRONZE.{source.upper()}", f"SILVER.{source.upper()}"
+    cols = SILVER_COLUMNS[source] + ["source_file"]
 
-    # 1. new rows only
-    cur.execute(f"SET hi = (SELECT COALESCE(MAX(LOAD_TS), '1970-01-01'::TIMESTAMP_LTZ) "  # nosec B608
-                f"FROM {bronze_table(source)})")
+    # 1. read only rows newer than the watermark.
+    #    (table/column names come from the constants above, never from user input)
+    cur.execute(f"SET hi = (SELECT COALESCE(MAX(LOAD_TS), '1970-01-01'::TIMESTAMP_LTZ) FROM {bronze})")
     dict_cur = conn.cursor(snowflake.connector.DictCursor)
     dict_cur.execute(
-        f"SELECT {', '.join(bronze_cols)} FROM {bronze_table(source)} "  # nosec B608
-        "WHERE LOAD_TS > (SELECT LAST_LOAD_TS FROM AUDIT.WATERMARK WHERE LAYER = 'SILVER' AND SOURCE = %s) "
-        "AND LOAD_TS <= $hi ORDER BY LOAD_TS, SOURCE_FILE",
+        f"SELECT {', '.join(COLUMNS[source])}, SOURCE_FILE FROM {bronze} "
+        "WHERE LOAD_TS > (SELECT LAST_LOAD_TS FROM AUDIT.WATERMARK WHERE SOURCE = %s) AND LOAD_TS <= $hi",
         (source,))
     raw_rows = [{k.lower(): v for k, v in row.items()} for row in dict_cur.fetchall()]
 
     # 2. validate
-    good, issues = _validate(source, raw_rows, cur)
+    good, problems = validate(source, raw_rows, cur)
 
-    # 3. stage good rows (temp table), then MERGE + DQ log + watermark in ONE transaction
-    stage = f"AUDIT.STG_{source.upper()}"
-    all_cols = cols + ["source_file"]
-    cur.execute(f"CREATE OR REPLACE TEMPORARY TABLE {stage} AS "  # nosec B608
-                f"SELECT {', '.join(all_cols)} FROM {table} WHERE 1 = 0")
+    # 3. put good rows in a temporary table, then MERGE (insert new / update existing)
+    cur.execute(f"CREATE OR REPLACE TEMPORARY TABLE AUDIT.STAGING AS SELECT {', '.join(cols)} FROM {silver} WHERE 1 = 0")
     if good:
-        placeholders = ", ".join(["%s"] * len(all_cols))
-        cur.executemany(f"INSERT INTO {stage} ({', '.join(all_cols)}) VALUES ({placeholders})",  # nosec B608
-                        [tuple(r.get(c) for c in all_cols) for r in good])
+        cur.executemany(f"INSERT INTO AUDIT.STAGING ({', '.join(cols)}) VALUES ({', '.join(['%s'] * len(cols))})",
+                        [tuple(r.get(c) for c in cols) for r in good])
+    on = " AND ".join(f"t.{k} = s.{k}" for k in KEYS[source])
+    update = ", ".join(f"t.{c} = s.{c}" for c in cols if c not in KEYS[source])
 
-    on = " AND ".join(f"t.{k} = s.{k}" for k in keys)
-    updates = ", ".join(f"t.{c} = s.{c}" for c in all_cols if c not in keys)
-    merge = f"MERGE INTO {table} t USING {stage} s ON {on} "  # nosec B608
-    if source != "payment_events":              # events never change -> insert only
-        merge += f"WHEN MATCHED THEN UPDATE SET {updates}, t.LOADED_AT = CURRENT_TIMESTAMP() "  # nosec B608
-    merge += (f"WHEN NOT MATCHED THEN INSERT ({', '.join(all_cols)}, LOADED_AT) "
-              f"VALUES ({', '.join('s.' + c for c in all_cols)}, CURRENT_TIMESTAMP())")
+    cur.execute("BEGIN")          # data + DQ log + watermark succeed or fail together
+    cur.execute(f"MERGE INTO {silver} t USING AUDIT.STAGING s ON {on} "
+                f"WHEN MATCHED THEN UPDATE SET {update}, t.LOADED_AT = CURRENT_TIMESTAMP() "
+                f"WHEN NOT MATCHED THEN INSERT ({', '.join(cols)}) VALUES ({', '.join('s.' + c for c in cols)})")
+    if problems:
+        cur.executemany("INSERT INTO AUDIT.DQ_LOG (RUN_ID, SOURCE, RECORD_KEY, SEVERITY, REASON, RAW_RECORD) "
+                        "VALUES (%s, %s, %s, %s, %s, %s)", [(run_id, source, *p) for p in problems])
+    cur.execute("UPDATE AUDIT.WATERMARK SET LAST_LOAD_TS = GREATEST($hi, LAST_LOAD_TS) WHERE SOURCE = %s",
+                (source,))
+    cur.execute("COMMIT")
 
-    cur.execute("BEGIN")
-    try:
-        cur.execute(merge)
-        if issues:
-            cur.executemany(
-                "INSERT INTO AUDIT.DQ_LOG (RUN_ID, SOURCE, RECORD_KEY, SEVERITY, REASON, RAW_RECORD) "
-                "VALUES (%s, %s, %s, %s, %s, %s)",
-                [(run_id, source, k, sev, reason, raw) for k, sev, reason, raw in issues])
-        cur.execute("UPDATE AUDIT.WATERMARK SET LAST_LOAD_TS = GREATEST($hi, LAST_LOAD_TS), "
-                    "UPDATED_AT = CURRENT_TIMESTAMP() WHERE LAYER = 'SILVER' AND SOURCE = %s", (source,))
-        cur.execute("COMMIT")
-    except Exception:
-        cur.execute("ROLLBACK")
-        raise
-
-    stats = {"read": len(raw_rows), "loaded": len(good),
-             "quarantined": sum(1 for i in issues if i[1] == rules.QUARANTINE),
-             "rejected": sum(1 for i in issues if i[1] == rules.REJECT),
-             "warnings": sum(1 for i in issues if i[1] == rules.WARNING)}
-    print(f"  [silver] {source:15s} read={stats['read']:4d} loaded={stats['loaded']:4d} "
-          f"quarantined={stats['quarantined']:3d} rejected={stats['rejected']:3d} warnings={stats['warnings']:3d}")
-    return stats
+    counts = {s: sum(1 for p in problems if p[1] == s) for s in (rules.QUARANTINE, rules.REJECT, rules.WARNING)}
+    print(f"  [silver] {source:15s} read={len(raw_rows):4d} loaded={len(good):4d} "
+          f"quarantined={counts['QUARANTINE']:3d} rejected={counts['REJECT']:3d} warnings={counts['WARNING']:3d}")
+    return {"loaded": len(good), **counts}
 
 
 def build_silver(conn, run_id: str) -> dict:
-    totals = {"read": 0, "loaded": 0, "quarantined": 0, "rejected": 0, "warnings": 0}
+    totals = {"loaded": 0, rules.QUARANTINE: 0, rules.REJECT: 0, rules.WARNING: 0}
     for source in SOURCES:
         for k, v in process_source(conn, source, run_id).items():
             totals[k] += v

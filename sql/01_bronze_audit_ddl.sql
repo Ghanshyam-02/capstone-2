@@ -1,16 +1,13 @@
 -- =====================================================================
 -- 01_bronze_audit_ddl.sql   (run by: python -m pipeline.run_pipeline --init)
--- BRONZE = data exactly as received. Every column is text, nothing is
--- rejected here, so we can always replay history.
+-- BRONZE = data exactly as received. Every column is text and nothing is
+-- rejected here, so history can always be replayed.
 -- =====================================================================
 
 CREATE FILE FORMAT IF NOT EXISTS BRONZE.CSV_FMT
-  TYPE = CSV
-  SKIP_HEADER = 1
-  FIELD_OPTIONALLY_ENCLOSED_BY = '"'
-  EMPTY_FIELD_AS_NULL = TRUE;
+  TYPE = CSV SKIP_HEADER = 1 FIELD_OPTIONALLY_ENCLOSED_BY = '"' EMPTY_FIELD_AS_NULL = TRUE;
 
--- Internal stage = a landing folder inside Snowflake for our CSV files.
+-- Stage = a folder inside Snowflake where we upload the CSV files.
 CREATE STAGE IF NOT EXISTS BRONZE.RAW_STAGE FILE_FORMAT = BRONZE.CSV_FMT;
 
 CREATE TABLE IF NOT EXISTS BRONZE.MERCHANT (
@@ -38,47 +35,40 @@ CREATE TABLE IF NOT EXISTS BRONZE.PAYMENT_EVENTS (
 );
 
 -- ---------------------------------------------------------------------
--- AUDIT: makes sure invalid records never silently disappear.
+-- AUDIT schema
 -- ---------------------------------------------------------------------
 
--- Every rejected / quarantined / warning record, with the reason.
+-- Invalid records never disappear: every rejected / quarantined / warning row lands here.
 CREATE TABLE IF NOT EXISTS AUDIT.DQ_LOG (
   RUN_ID      VARCHAR NOT NULL,
   SOURCE      VARCHAR NOT NULL,          -- transactions / settlements / ...
-  RECORD_KEY  VARCHAR,                   -- the record's id (if it had one)
+  RECORD_KEY  VARCHAR,                   -- id of the bad record (if it had one)
   SEVERITY    VARCHAR NOT NULL,          -- REJECT / QUARANTINE / WARNING
   REASON      VARCHAR NOT NULL,          -- e.g. MISSING_MERCHANT_ID
-  RAW_RECORD  VARCHAR,                   -- original row as JSON (customer_id masked)
+  RAW_RECORD  VARCHAR,                   -- original row as JSON (customer id masked)
   LOGGED_AT   TIMESTAMP_LTZ DEFAULT CURRENT_TIMESTAMP()
 );
 
--- Incremental processing: "how far did each layer get last time?"
+-- Incremental processing: "up to which load time did we already process?"
 CREATE TABLE IF NOT EXISTS AUDIT.WATERMARK (
-  LAYER        VARCHAR NOT NULL,
-  SOURCE       VARCHAR NOT NULL,
-  LAST_LOAD_TS TIMESTAMP_LTZ NOT NULL,
-  UPDATED_AT   TIMESTAMP_LTZ DEFAULT CURRENT_TIMESTAMP(),
-  CONSTRAINT PK_WATERMARK PRIMARY KEY (LAYER, SOURCE)
+  SOURCE        VARCHAR NOT NULL PRIMARY KEY,   -- merchant / transactions / settlements / payment_events / gold
+  LAST_LOAD_TS  TIMESTAMP_LTZ NOT NULL
 );
 
-MERGE INTO AUDIT.WATERMARK w
-USING (SELECT column1 AS LAYER, column2 AS SOURCE FROM VALUES
-         ('SILVER', 'merchant'), ('SILVER', 'transactions'),
-         ('SILVER', 'settlements'), ('SILVER', 'payment_events'), ('GOLD', 'ALL')) s
-ON w.LAYER = s.LAYER AND w.SOURCE = s.SOURCE
-WHEN NOT MATCHED THEN INSERT (LAYER, SOURCE, LAST_LOAD_TS)
-  VALUES (s.LAYER, s.SOURCE, '1970-01-01 00:00:00'::TIMESTAMP_LTZ);
+INSERT INTO AUDIT.WATERMARK (SOURCE, LAST_LOAD_TS)
+SELECT column1, '1970-01-01'::TIMESTAMP_LTZ
+FROM VALUES ('merchant'), ('transactions'), ('settlements'), ('payment_events'), ('gold')
+WHERE column1 NOT IN (SELECT SOURCE FROM AUDIT.WATERMARK);
 
 -- Monitoring: one row per pipeline run.
 CREATE TABLE IF NOT EXISTS AUDIT.PIPELINE_RUNS (
   RUN_ID            VARCHAR NOT NULL PRIMARY KEY,
-  STARTED_AT        TIMESTAMP_LTZ,
+  STARTED_AT        TIMESTAMP_LTZ DEFAULT CURRENT_TIMESTAMP(),
   FINISHED_AT       TIMESTAMP_LTZ,
   STATUS            VARCHAR,             -- RUNNING / SUCCESS / FAILED
   FILES_LOADED      NUMBER,
-  ROWS_TO_SILVER    NUMBER,
+  ROWS_LOADED       NUMBER,
   ROWS_QUARANTINED  NUMBER,
   ROWS_REJECTED     NUMBER,
-  ROWS_WARNING      NUMBER,
   ERROR_MESSAGE     VARCHAR
 );

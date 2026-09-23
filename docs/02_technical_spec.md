@@ -23,25 +23,22 @@ Fields: see the brief section 2; typed versions in `sql/02_silver_ddl.sql`.
 | Bronze | `sql/01_bronze_audit_ddl.sql` | All columns `VARCHAR` + `SOURCE_FILE` + `LOAD_TS`. Nothing is rejected. |
 | Silver | `pipeline/silver.py` + `pipeline/rules.py` | Read rows newer than watermark → validate → de-duplicate → type → `MERGE`. Bad rows → `AUDIT.DQ_LOG`. Data + DQ log + watermark committed in one transaction. |
 | Gold | `sql/04_gold_transform.sql` | SCD2 merchant dimension, facts with point-in-time risk, event sequencing by business time, `AGG_MERCHANT_DAILY` rebuilt only for affected dates. |
-| Incremental | `AUDIT.WATERMARK` | One watermark per Silver source + one for Gold. |
+| Incremental | `AUDIT.WATERMARK` | One watermark per source file type + one for Gold. |
 
 ## Storage
 Snowflake: database `SETTLEMENT_DB`, schemas `BRONZE`, `SILVER`, `GOLD`, `AUDIT`, warehouse `SETTLE_WH` (X-Small, auto-suspend 60 s).
 Model details and grain: [04_data_model.md](04_data_model.md).
 
-## API (FastAPI + Pydantic, OpenAPI at `/docs`)
+## API (FastAPI + Pydantic, OpenAPI docs at `/docs`)
 | Endpoint | Purpose |
 |---|---|
-| `GET /health` | liveness + DB check (no auth) |
-| `GET /api/v1/settlement-summary?start_date&end_date&merchant_id` | KPI 1-5 |
-| `GET /api/v1/merchant-exceptions[?start_date&end_date]` | rate < 95 % OR SLA < 90 % |
-| `GET /api/v1/merchant-performance?start_date&end_date` | all merchants, by gap |
-| `GET /api/v1/daily-trend?start_date&end_date` | chart 1 |
-| `GET /api/v1/gap-breakdown?start_date&end_date` | gap by reason |
-| `GET /api/v1/data-quality` | DQ counts |
-| `GET /api/v1/data-range` | first/last date with data |
+| `GET /api/v1/settlement-summary?start_date&end_date&merchant_id` | KPI 1-5 (asked in the brief) |
+| `GET /api/v1/merchant-exceptions` | rate < 95 % OR SLA < 90 % (asked in the brief) |
+| `GET /api/v1/daily-trend?start_date&end_date` | data for dashboard chart 1 |
+| `GET /api/v1/merchants?start_date&end_date` | data for dashboard chart 2 + table |
+| `GET /health` | health check for deployment |
 
-Errors: 400 invalid date / range, 401 missing key, 404 unknown merchant, 422 invalid parameter.
+Errors: 400 invalid date, 401 missing API key, 404 unknown merchant, 422 invalid parameter.
 
 ## Front-end
 `frontend/index.html` – plain HTML + JavaScript + Chart.js, served by FastAPI at `/`. Reads **only** the API.
@@ -52,8 +49,8 @@ Rules in `pipeline/rules.py` (see business spec table). Tests: `tests/unit` (rul
 
 ## Monitoring
 - `AUDIT.PIPELINE_RUNS` – start/end/status/row counts/error per run.
-- `AUDIT.DQ_LOG` + `GOLD.V_DQ_SUMMARY` – data-quality trend (also on the dashboard).
-- API access log (method, path, status, duration) and `/health` for the container platform.
+- `AUDIT.DQ_LOG` – every bad record with its reason.
+- `/health` endpoint for the container platform.
 
 ## Security
 See [05_security.md](05_security.md): key-pair auth, least-privilege roles, API key, parameterised SQL,

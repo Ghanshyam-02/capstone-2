@@ -46,4 +46,4 @@ erDiagram
 | BRONZE | MERCHANT, TRANSACTIONS, SETTLEMENTS, PAYMENT_EVENTS | text only, append-only, + SOURCE_FILE, LOAD_TS |
 | SILVER | same four, typed | validated, de-duplicated, upserted |
 | GOLD | dims, facts, AGG, views | business logic |
-| AUDIT | DQ_LOG, WATERMARK, PIPELINE_RUNS, temp staging tables | control + monitoring |
+| AUDIT | DQ_LOG, WATERMARK, PIPELINE_RUNS | control + monitoring |

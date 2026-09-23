@@ -45,15 +45,15 @@ REST API, HTML dashboard, automated tests, CI/CD design.
 |---|---|---|
 | Unreadable id / timestamp / amount | **Reject** | Logged in `AUDIT.DQ_LOG`, never loaded |
 | Duplicate event id | **Reject** | First copy kept, duplicate logged |
-| Missing / unknown merchant id | **Quarantine** | Held in DQ log for Ops to fix and replay |
+| Missing / unknown merchant id | **Quarantine** | Held in DQ log for Ops to fix |
 | Invalid currency | **Quarantine** | Held in DQ log |
 | Negative settlement amount | **Quarantine** | Could be a refund/reversal → human review |
 | Settlement without matching transaction | **Quarantine** | Orphan, held in DQ log |
 | Event arriving after SLA (late) | **Warning** | Loaded, flagged `IS_LATE`, logged |
-| Successful transaction not (fully) settled | **Business exception** | Loaded, classified UNSETTLED / PENDING / PARTIALLY_SETTLED / SETTLEMENT_FAILED, shown in the exception report |
+| Successful transaction not (fully) settled | **Business exception** | Loaded, classified UNSETTLED / PENDING / PARTIALLY_SETTLED, shown in `GOLD.V_SETTLEMENT_EXCEPTIONS` |
 
 ## Acceptance criteria
-1. Dashboard shows the 5 KPIs, the daily trend, top-10 gap merchants and the merchant table, **from the API only**.
+1. Dashboard shows the KPI cards, the daily chart, the top-10 gap chart and the merchant table, **from the API only**.
 2. `GET /api/v1/settlement-summary` and `GET /api/v1/merchant-exceptions` return the documented JSON.
 3. A split settlement (8,000 + 2,000) counts the transaction **once**.
 4. Every rejected / quarantined / warning record is visible in `AUDIT.DQ_LOG` with a reason.

@@ -95,39 +95,25 @@ CREATE TABLE IF NOT EXISTS GOLD.FACT_PAYMENT_EVENT (
 );
 
 -- GRAIN: one row = one merchant for one transaction date.
--- Pre-computed so the API answers in milliseconds.
+-- Small pre-computed table, so the API answers in milliseconds.
 CREATE TABLE IF NOT EXISTS GOLD.AGG_MERCHANT_DAILY (
-  TXN_DATE              DATE         NOT NULL,
-  DATE_KEY              NUMBER(8)    NOT NULL,
-  MERCHANT_ID           VARCHAR(20)  NOT NULL,
-  MERCHANT_NAME         VARCHAR(200),
-  RISK_LEVEL            VARCHAR(10),
-  ATTEMPT_COUNT         NUMBER,
-  SUCCESS_COUNT         NUMBER,
-  FAILED_COUNT          NUMBER,
-  REVERSED_COUNT        NUMBER,
-  SUCCESS_AMOUNT        NUMBER(18,2),
-  SETTLED_AMOUNT        NUMBER(18,2),
-  SLA_MET_COUNT         NUMBER,
-  SETTLED_COUNT         NUMBER,
-  PARTIAL_COUNT         NUMBER,
-  PENDING_COUNT         NUMBER,
-  SETTLE_FAILED_COUNT   NUMBER,
-  UNSETTLED_COUNT       NUMBER,
-  GAP_PARTIAL_AMT       NUMBER(18,2),
-  GAP_PENDING_AMT       NUMBER(18,2),
-  GAP_FAILED_AMT        NUMBER(18,2),
-  GAP_UNSETTLED_AMT     NUMBER(18,2),
-  REFRESHED_AT          TIMESTAMP_LTZ,
+  TXN_DATE        DATE         NOT NULL,
+  MERCHANT_ID     VARCHAR(20)  NOT NULL,
+  MERCHANT_NAME   VARCHAR(200),
+  RISK_LEVEL      VARCHAR(10),
+  SUCCESS_COUNT   NUMBER,          -- successful transactions
+  SUCCESS_AMOUNT  NUMBER(18,2),    -- KPI 1
+  SETTLED_AMOUNT  NUMBER(18,2),    -- for KPI 2 and 3
+  SLA_MET_COUNT   NUMBER,          -- for KPI 4
   CONSTRAINT PK_AGG_MERCHANT_DAILY PRIMARY KEY (TXN_DATE, MERCHANT_ID)
 );
 
 -- ---------------------------------------------------------------------
 -- V_TXN_SETTLEMENT - GRAIN: one row = one transaction.
 -- Solves the ONE-TO-MANY problem: settlements are SUMMED PER TRANSACTION
--- first (CTE "s"), and only then joined. A direct join would repeat the
--- transaction amount once per settlement row and inflate totals.
--- Same logic as pipeline/rules.py -> summarize_settlement().
+-- first (the "s" part), and only then joined. A direct join would repeat
+-- the transaction amount once per settlement row.
+-- Same logic as summarize_settlement() in pipeline/rules.py.
 -- ---------------------------------------------------------------------
 CREATE OR REPLACE VIEW GOLD.V_TXN_SETTLEMENT AS
 WITH s AS (
@@ -135,46 +121,35 @@ WITH s AS (
          SUM(IFF(SETTLEMENT_STATUS = 'SETTLED', SETTLEMENT_AMOUNT, 0)) AS SETTLED_RAW,
          MAX(IFF(SETTLEMENT_STATUS = 'SETTLED', SETTLEMENT_TS, NULL))  AS LAST_SETTLED_TS,
          COUNT_IF(SETTLEMENT_STATUS = 'PENDING')                       AS PENDING_CNT,
-         COUNT_IF(SETTLEMENT_STATUS = 'FAILED')                        AS FAILED_CNT,
-         COUNT(*)                                                      AS RECORD_CNT
+         COUNT(*)                                                      AS SETTLEMENT_RECORDS
   FROM GOLD.FACT_SETTLEMENT
   GROUP BY TRANSACTION_ID
 )
 SELECT t.TRANSACTION_ID,
        t.MERCHANT_ID,
        m.MERCHANT_NAME,
-       t.RISK_LEVEL_AT_TXN                                   AS RISK_LEVEL,
+       t.RISK_LEVEL_AT_TXN                                    AS RISK_LEVEL,
        t.TRANSACTION_TS,
-       t.TRANSACTION_TS::DATE                                AS TXN_DATE,
+       t.TRANSACTION_TS::DATE                                 AS TXN_DATE,
        t.AMOUNT,
        t.STATUS,
-       COALESCE(s.RECORD_CNT, 0)                             AS SETTLEMENT_RECORDS,
-       COALESCE(s.SETTLED_RAW, 0)                            AS SETTLED_RAW,
-       LEAST(COALESCE(s.SETTLED_RAW, 0), t.AMOUNT)           AS SETTLED_AMOUNT,   -- capped: never > 100%
-       IFF(t.STATUS = 'SUCCESS', t.AMOUNT - LEAST(COALESCE(s.SETTLED_RAW, 0), t.AMOUNT), 0) AS GAP_AMOUNT,
-       s.LAST_SETTLED_TS,
-       CASE WHEN t.STATUS <> 'SUCCESS'              THEN 'NOT_APPLICABLE'
-            WHEN COALESCE(s.SETTLED_RAW, 0) >= t.AMOUNT THEN 'SETTLED'
-            WHEN COALESCE(s.SETTLED_RAW, 0) > 0     THEN 'PARTIALLY_SETTLED'
-            WHEN COALESCE(s.PENDING_CNT, 0) > 0     THEN 'PENDING'
-            WHEN COALESCE(s.FAILED_CNT, 0) > 0      THEN 'SETTLEMENT_FAILED'
-            ELSE 'UNSETTLED' END                             AS SETTLEMENT_CLASS,
-       IFF(t.STATUS = 'SUCCESS'
-           AND COALESCE(s.SETTLED_RAW, 0) >= t.AMOUNT
+       COALESCE(s.SETTLEMENT_RECORDS, 0)                      AS SETTLEMENT_RECORDS,
+       LEAST(COALESCE(s.SETTLED_RAW, 0), t.AMOUNT)            AS SETTLED_AMOUNT,   -- never above 100%
+       t.AMOUNT - LEAST(COALESCE(s.SETTLED_RAW, 0), t.AMOUNT) AS GAP_AMOUNT,
+       CASE WHEN COALESCE(s.SETTLED_RAW, 0) >= t.AMOUNT THEN 'SETTLED'
+            WHEN COALESCE(s.SETTLED_RAW, 0) > 0         THEN 'PARTIALLY_SETTLED'
+            WHEN COALESCE(s.PENDING_CNT, 0) > 0         THEN 'PENDING'
+            ELSE 'UNSETTLED' END                              AS SETTLEMENT_CLASS,
+       IFF(COALESCE(s.SETTLED_RAW, 0) >= t.AMOUNT
            AND DATEDIFF('second', t.TRANSACTION_TS, s.LAST_SETTLED_TS) <= 1800, 1, 0) AS SLA_MET
 FROM GOLD.FACT_TRANSACTION t
-LEFT JOIN s              ON s.TRANSACTION_ID = t.TRANSACTION_ID
-LEFT JOIN GOLD.DIM_MERCHANT m ON m.MERCHANT_SK = t.MERCHANT_SK;
+LEFT JOIN s                   ON s.TRANSACTION_ID = t.TRANSACTION_ID
+LEFT JOIN GOLD.DIM_MERCHANT m ON m.MERCHANT_SK = t.MERCHANT_SK
+WHERE t.STATUS = 'SUCCESS';          -- FAILED / REVERSED payments are never settled or counted
 
--- Settlement exception report (business exceptions): successful but not fully settled.
+-- Settlement exception report: successful payments that are not fully settled.
 CREATE OR REPLACE VIEW GOLD.V_SETTLEMENT_EXCEPTIONS AS
 SELECT TRANSACTION_ID, MERCHANT_ID, MERCHANT_NAME, RISK_LEVEL, TRANSACTION_TS,
        AMOUNT, SETTLED_AMOUNT, GAP_AMOUNT, SETTLEMENT_CLASS
 FROM GOLD.V_TXN_SETTLEMENT
-WHERE STATUS = 'SUCCESS' AND SETTLEMENT_CLASS <> 'SETTLED';
-
--- Data-quality summary for the dashboard (counts only - no raw records / PII).
-CREATE OR REPLACE VIEW GOLD.V_DQ_SUMMARY AS
-SELECT SOURCE, SEVERITY, REASON, COUNT(*) AS RECORD_COUNT
-FROM AUDIT.DQ_LOG
-GROUP BY SOURCE, SEVERITY, REASON;
+WHERE SETTLEMENT_CLASS <> 'SETTLED';
