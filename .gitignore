@@ -1,0 +1,22 @@
+# Secrets - NEVER commit these
+.env
+keys/*
+!keys/.gitkeep
+*.p8
+*.pem
+
+# Generated data (re-create with: python -m pipeline.generate_data)
+data/raw/*.csv
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

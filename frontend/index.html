@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Settlement Intelligence</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root { --bg:#f5f6f8; --card:#fff; --ink:#1d2433; --muted:#6b7385; --line:#e3e6ec;
+          --blue:#2563eb; --green:#16a34a; --red:#dc2626; --amber:#d97706; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
+  header { background:#0f1f3d; color:#fff; padding:16px 24px; display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; }
+  header h1 { font-size:18px; margin:0; }
+  .controls { display:flex; flex-wrap:wrap; gap:8px; align-items:center; font-size:13px; }
+  .controls input { padding:6px 8px; border-radius:6px; border:1px solid #3b4a6b; background:#17294d; color:#fff; }
+  .controls button { padding:7px 14px; border:0; border-radius:6px; background:var(--blue); color:#fff; cursor:pointer; }
+  main { padding:20px 24px; max-width:1300px; margin:auto; }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:12px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
+  .kpi .label { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+  .kpi .value { font-size:24px; font-weight:650; margin-top:6px; font-variant-numeric: tabular-nums; }
+  .good { color:var(--green); } .bad { color:var(--red); }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px; }
+  @media (max-width: 900px) { .grid2 { grid-template-columns:1fr; } }
+  h2 { font-size:14px; margin:0 0 10px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { text-align:left; padding:7px 8px; border-bottom:1px solid var(--line); }
+  th { color:var(--muted); font-weight:600; }
+  td.num, th.num { text-align:right; font-variant-numeric: tabular-nums; }
+  .pill { padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600; }
+  .HIGH { background:#fde2e2; color:var(--red); } .MEDIUM { background:#fdf0d9; color:var(--amber); } .LOW { background:#dcf5e3; color:var(--green); }
+  tr.exception td:first-child { border-left:3px solid var(--red); }
+  #error { display:none; background:#fde2e2; color:var(--red); padding:10px 14px; border-radius:8px; margin-bottom:12px; }
+  .chart-box { position:relative; height:280px; }
+  .table-wrap { overflow-x:auto; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Merchant Settlement Intelligence</h1>
+  <div class="controls">
+    <label>API key <input id="apiKey" type="password" placeholder="X-API-Key" size="18"></label>
+    <label>From <input id="start" type="date"></label>
+    <label>To <input id="end" type="date"></label>
+    <button id="load">Load</button>
+  </div>
+</header>
+
+<main>
+  <div id="error"></div>
+
+  <section class="kpis">
+    <div class="card kpi"><div class="label">Transactions</div><div class="value" id="k-count">-</div></div>
+    <div class="card kpi"><div class="label">₹ Transaction Volume</div><div class="value" id="k-volume">-</div></div>
+    <div class="card kpi"><div class="label">Settlement Rate</div><div class="value" id="k-rate">-</div></div>
+    <div class="card kpi"><div class="label">Settlement Gap</div><div class="value" id="k-gap">-</div></div>
+    <div class="card kpi"><div class="label">SLA Rate (30 min)</div><div class="value" id="k-sla">-</div></div>
+    <div class="card kpi"><div class="label">High-risk merchants</div><div class="value" id="k-risk">-</div></div>
+  </section>
+
+  <section class="grid2">
+    <div class="card"><h2>Daily transaction amount vs settled amount</h2><div class="chart-box"><canvas id="c-daily"></canvas></div></div>
+    <div class="card"><h2>Top 10 merchants by settlement gap</h2><div class="chart-box"><canvas id="c-gap"></canvas></div></div>
+  </section>
+
+  <section class="card" style="margin-top:12px">
+    <h2>Merchant performance <span style="color:var(--muted);font-weight:400">(red bar = exception: rate &lt; 95% or SLA &lt; 90%)</span></h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Merchant</th><th>Risk</th><th class="num">Settlement Rate</th><th class="num">SLA</th><th class="num">Settlement Gap</th></tr></thead>
+      <tbody id="t-merchants"></tbody>
+    </table></div>
+  </section>
+
+  <section class="grid2">
+    <div class="card"><h2>Why is there a gap?</h2>
+      <table><thead><tr><th>Reason</th><th class="num">Txns</th><th class="num">Amount</th></tr></thead><tbody id="t-gap"></tbody></table>
+    </div>
+    <div class="card"><h2>Data quality (records held back or flagged)</h2>
+      <table><thead><tr><th>Source</th><th>Severity</th><th>Reason</th><th class="num">Records</th></tr></thead><tbody id="t-dq"></tbody></table>
+    </div>
+  </section>
+</main>
+
+<script>
+const inr = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
+const pct = v => v.toFixed(2) + "%";
+const $ = id => document.getElementById(id);
+const charts = {};
+
+// The key lives only in this browser tab's session storage.
+try { $("apiKey").value = sessionStorage.getItem("apiKey") || ""; } catch (e) {}
+
+async function api(path, params = {}) {
+  const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v)).toString();
+  const res = await fetch(`/api/v1/${path}${qs ? "?" + qs : ""}`, { headers: { "X-API-Key": $("apiKey").value } });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(`${path}: ${res.status} ${typeof body.detail === "string" ? body.detail : ""}`);
+  }
+  return res.json();
+}
+
+// Build table rows with textContent (never innerHTML) -> no XSS from data.
+function row(cells) {
+  const tr = document.createElement("tr");
+  for (const c of cells) {
+    const td = document.createElement("td");
+    if (c.pill) { const s = document.createElement("span"); s.className = "pill " + c.pill; s.textContent = c.pill; td.appendChild(s); }
+    else td.textContent = c.text;
+    if (c.num) td.className = "num";
+    if (c.cls) td.classList.add(c.cls);
+    tr.appendChild(td);
+  }
+  return tr;
+}
+
+function drawChart(id, config) {
+  if (charts[id]) charts[id].destroy();
+  charts[id] = new Chart($(id), config);
+}
+
+async function load() {
+  $("error").style.display = "none";
+  try { sessionStorage.setItem("apiKey", $("apiKey").value); } catch (e) {}
+  try {
+    if (!$("start").value || !$("end").value) {
+      const r = await api("data-range");
+      $("start").value = r.min_date || ""; $("end").value = r.max_date || "";
+    }
+    const range = { start_date: $("start").value, end_date: $("end").value };
+    const [summary, daily, merchants, gaps, dq] = await Promise.all([
+      api("settlement-summary", range), api("daily-trend", range), api("merchant-performance", range),
+      api("gap-breakdown", range), api("data-quality"),
+    ]);
+
+    $("k-count").textContent = summary.transaction_count.toLocaleString("en-IN");
+    $("k-volume").textContent = inr.format(summary.transaction_amount);
+    $("k-rate").textContent = pct(summary.settlement_rate);
+    $("k-rate").className = "value " + (summary.settlement_rate >= 95 ? "good" : "bad");
+    $("k-gap").textContent = inr.format(summary.settlement_gap);
+    $("k-sla").textContent = pct(summary.sla_rate);
+    $("k-sla").className = "value " + (summary.sla_rate >= 90 ? "good" : "bad");
+    $("k-risk").textContent = summary.merchant_risk_count;
+
+    drawChart("c-daily", {
+      type: "line",
+      data: { labels: daily.map(d => d.date), datasets: [
+        { label: "Transaction amount", data: daily.map(d => d.transaction_amount), borderColor: "#2563eb", backgroundColor: "#2563eb", tension: .2 },
+        { label: "Settled amount", data: daily.map(d => d.settled_amount), borderColor: "#16a34a", backgroundColor: "#16a34a", tension: .2 },
+      ]},
+      options: { maintainAspectRatio: false, scales: { y: { ticks: { callback: v => inr.format(v) } } } },
+    });
+
+    const top = merchants.filter(m => m.settlement_gap > 0).slice(0, 10);
+    drawChart("c-gap", {
+      type: "bar",
+      data: { labels: top.map(m => `${m.merchant_id} ${m.merchant_name || ""}`),
+              datasets: [{ label: "Settlement gap", data: top.map(m => m.settlement_gap), backgroundColor: "#dc2626" }] },
+      options: { indexAxis: "y", maintainAspectRatio: false, plugins: { legend: { display: false } },
+                 scales: { x: { ticks: { callback: v => inr.format(v) } } } },
+    });
+
+    const tbody = $("t-merchants"); tbody.replaceChildren();
+    for (const m of merchants) {
+      const tr = row([
+        { text: `${m.merchant_id} - ${m.merchant_name || ""}` },
+        { pill: m.risk_level || "-" },
+        { text: pct(m.settlement_rate), num: true, cls: m.settlement_rate < 95 ? "bad" : "" },
+        { text: pct(m.sla_rate), num: true, cls: m.sla_rate < 90 ? "bad" : "" },
+        { text: inr.format(m.settlement_gap), num: true },
+      ]);
+      if (m.is_exception) tr.className = "exception";
+      tbody.appendChild(tr);
+    }
+
+    $("t-gap").replaceChildren(...gaps.map(g => row([
+      { text: g.category.replaceAll("_", " ").toLowerCase() }, { text: g.transaction_count, num: true }, { text: inr.format(g.amount), num: true }])));
+    $("t-dq").replaceChildren(...dq.map(d => row([
+      { text: d.source }, { text: d.severity }, { text: d.reason }, { text: d.record_count, num: true }])));
+  } catch (e) {
+    $("error").textContent = "Could not load data - " + e.message;
+    $("error").style.display = "block";
+  }
+}
+
+$("load").addEventListener("click", load);
+if ($("apiKey").value) load();
+</script>
+</body>
+</html>

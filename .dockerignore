@@ -1,0 +1,13 @@
+.env
+keys/
+*.p8
+data/
+tests/
+docs/
+sql/
+.git/
+.github/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/

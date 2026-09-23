@@ -1,0 +1,50 @@
+# Runs automatically on every push to GitHub (see the "Actions" tab).
+# Same stages as the GitLab design in .gitlab-ci.yml: tests -> SAST -> dependency scan -> docker build.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements-dev.txt
+      - name: Unit + API contract tests
+        run: pytest -v -m "not snowflake"
+
+  sast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install bandit
+      - name: Bandit (static security scan, medium+ severity)
+        run: bandit -r api common pipeline -ll
+
+  dependency-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pip-audit
+      - name: pip-audit (known CVEs in dependencies)
+        run: pip-audit -r requirements.txt
+        continue-on-error: true   # report only - a new CVE upstream should not block learning
+
+  docker-build:
+    needs: [test, sast]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t settlement-api:${{ github.sha }} .

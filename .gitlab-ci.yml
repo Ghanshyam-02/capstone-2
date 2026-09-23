@@ -1,0 +1,75 @@
+# Deployment design required by the brief (Task 4E):
+#   GitLab -> CI (tests, SAST, dependency scan, docker build) -> DEV -> TEST -> PROD
+#
+# Secrets (SNOWFLAKE_*, API_KEY, SNOWFLAKE_PRIVATE_KEY as a "File" variable) live in
+# GitLab: Settings -> CI/CD -> Variables (masked + protected). Never in the repo.
+
+stages: [test, security, build, deploy_dev, deploy_test, deploy_prod]
+
+variables:
+  IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA     # every commit = its own image tag (rollback!)
+
+include:
+  - template: Jobs/SAST.gitlab-ci.yml                # GitLab's free SAST scanner
+
+unit_and_api_tests:
+  stage: test
+  image: python:3.12-slim
+  script:
+    - pip install -r requirements-dev.txt
+    - pytest -v -m "not snowflake"
+
+sast:
+  stage: security
+
+dependency_scan:
+  stage: security
+  image: python:3.12-slim
+  script:
+    - pip install pip-audit
+    - pip-audit -r requirements.txt
+
+docker_build:
+  stage: build
+  image: docker:27
+  services: [docker:27-dind]
+  script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+    - docker build -t "$IMAGE" .
+    - docker push "$IMAGE"
+
+# ---- deployment template: deploy image, wait for health check, run smoke test
+.deploy:
+  image: alpine:3.20
+  before_script: [apk add --no-cache curl]
+  script:
+    - echo "Deploy $IMAGE to $CI_ENVIRONMENT_NAME (e.g. kubectl set image / az containerapp update)"
+    - echo "Env config comes from GitLab variables scoped to $CI_ENVIRONMENT_NAME (SNOWFLAKE_DATABASE=SETTLEMENT_DB_$CI_ENVIRONMENT_NAME ...)"
+    - curl --fail --retry 10 --retry-delay 6 "$APP_URL/health"                       # health check
+    - 'curl --fail -H "X-API-Key: $API_KEY" "$APP_URL/api/v1/data-range"'           # smoke test
+
+deploy_dev:
+  extends: .deploy
+  stage: deploy_dev
+  environment: { name: DEV }
+  rules: [{ if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH }]
+
+deploy_test:
+  extends: .deploy
+  stage: deploy_test
+  environment: { name: TEST }
+  rules: [{ if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH, when: manual }]
+
+deploy_prod:
+  extends: .deploy
+  stage: deploy_prod
+  environment: { name: PROD }
+  rules: [{ if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH, when: manual }]    # human approval
+
+# Rollback = redeploy the previous image tag. Run manually with ROLLBACK_TAG=<old short sha>.
+rollback_prod:
+  extends: .deploy
+  stage: deploy_prod
+  environment: { name: PROD }
+  variables: { IMAGE: $CI_REGISTRY_IMAGE:$ROLLBACK_TAG }
+  rules: [{ if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH, when: manual }]
