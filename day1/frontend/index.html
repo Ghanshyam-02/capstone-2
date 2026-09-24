@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Settlement Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  body { margin: 0; font-family: system-ui, "Segoe UI", sans-serif; background: #f5f6f8; color: #1d2433; }
+  header { background: #0f1f3d; color: #fff; padding: 14px 24px; display: flex; flex-wrap: wrap; gap: 12px;
+           align-items: center; justify-content: space-between; }
+  header h1 { font-size: 18px; margin: 0; }
+  header input, header button { padding: 6px 8px; border-radius: 6px; border: 1px solid #3b4a6b; }
+  header button { background: #2563eb; color: #fff; border: 0; cursor: pointer; }
+  main { padding: 20px 24px; max-width: 1200px; margin: auto; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+  .card { background: #fff; border: 1px solid #e3e6ec; border-radius: 10px; padding: 14px 16px; }
+  .label { color: #6b7385; font-size: 12px; text-transform: uppercase; }
+  .value { font-size: 24px; font-weight: 650; margin-top: 6px; }
+  .bad { color: #dc2626; }
+  .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 12px 0; }
+  @media (max-width: 900px) { .charts { grid-template-columns: 1fr; } }
+  .chart { position: relative; height: 280px; }
+  h2 { font-size: 14px; margin: 0 0 10px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid #e3e6ec; }
+  .num { text-align: right; }
+  #error { display: none; background: #fde2e2; color: #dc2626; padding: 10px; border-radius: 8px; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Merchant Settlement Dashboard</h1>
+  <div>
+    <input id="apiKey" type="password" placeholder="API key">
+    <input id="start" type="date" value="2026-09-01">
+    <input id="end" type="date" value="2026-10-01">
+    <button id="load">Load</button>
+  </div>
+</header>
+
+<main>
+  <div id="error"></div>
+
+  <!-- KPI cards -->
+  <div class="cards">
+    <div class="card"><div class="label">Transactions</div><div class="value" id="count">-</div></div>
+    <div class="card"><div class="label">₹ Transaction Volume</div><div class="value" id="volume">-</div></div>
+    <div class="card"><div class="label">Settlement Rate</div><div class="value" id="rate">-</div></div>
+    <div class="card"><div class="label">Settlement Gap</div><div class="value" id="gap">-</div></div>
+    <div class="card"><div class="label">SLA Rate</div><div class="value" id="sla">-</div></div>
+    <div class="card"><div class="label">Risky Merchants</div><div class="value" id="risky">-</div></div>
+  </div>
+
+  <!-- Chart 1 and Chart 2 -->
+  <div class="charts">
+    <div class="card"><h2>Daily transaction amount vs daily settlement amount</h2><div class="chart"><canvas id="dailyChart"></canvas></div></div>
+    <div class="card"><h2>Top 10 merchants with settlement gaps</h2><div class="chart"><canvas id="gapChart"></canvas></div></div>
+  </div>
+
+  <!-- Table -->
+  <div class="card">
+    <h2>Merchants</h2>
+    <table>
+      <thead><tr><th>Merchant</th><th>Risk</th><th class="num">Settlement Rate</th><th class="num">SLA</th><th class="num">Settlement Gap</th></tr></thead>
+      <tbody id="table"></tbody>
+    </table>
+  </div>
+</main>
+
+<script>
+const inr = n => "₹" + Math.round(n).toLocaleString("en-IN");
+const $ = id => document.getElementById(id);
+let dailyChart, gapChart;
+
+// Every call goes to OUR API (never to the CSV files or the database directly)
+async function api(path) {
+  const res = await fetch("/api/v1/" + path, { headers: { "X-API-Key": $("apiKey").value } });
+  if (!res.ok) throw new Error(path + " returned " + res.status);
+  return res.json();
+}
+
+async function load() {
+  $("error").style.display = "none";
+  const dates = `start_date=${$("start").value}&end_date=${$("end").value}`;
+  try {
+    const summary = await api("settlement-summary?" + dates);
+    const daily = await api("daily-trend?" + dates);
+    const merchants = await api("merchants?" + dates);
+
+    // KPI cards
+    $("count").textContent = summary.transaction_count.toLocaleString("en-IN");
+    $("volume").textContent = inr(summary.transaction_amount);
+    $("rate").textContent = summary.settlement_rate + "%";
+    $("gap").textContent = inr(summary.settlement_gap);
+    $("sla").textContent = summary.sla_rate + "%";
+    $("risky").textContent = summary.merchant_risk_count;
+    $("rate").className = "value" + (summary.settlement_rate < 95 ? " bad" : "");
+    $("sla").className = "value" + (summary.sla_rate < 90 ? " bad" : "");
+
+    // Chart 1
+    if (dailyChart) dailyChart.destroy();
+    dailyChart = new Chart($("dailyChart"), {
+      type: "line",
+      data: {
+        labels: daily.map(d => d.date),
+        datasets: [
+          { label: "Transaction amount", data: daily.map(d => d.transaction_amount), borderColor: "#2563eb" },
+          { label: "Settled amount", data: daily.map(d => d.settled_amount), borderColor: "#16a34a" },
+        ],
+      },
+      options: { maintainAspectRatio: false },
+    });
+
+    // Chart 2
+    const top10 = merchants.filter(m => m.settlement_gap > 0).slice(0, 10);
+    if (gapChart) gapChart.destroy();
+    gapChart = new Chart($("gapChart"), {
+      type: "bar",
+      data: {
+        labels: top10.map(m => m.merchant_id + " " + m.merchant_name),
+        datasets: [{ label: "Settlement gap (₹)", data: top10.map(m => m.settlement_gap), backgroundColor: "#dc2626" }],
+      },
+      options: { indexAxis: "y", maintainAspectRatio: false },
+    });
+
+    // Table (textContent, not innerHTML, so data can never inject HTML/JS)
+    $("table").replaceChildren();
+    for (const m of merchants) {
+      const tr = $("table").insertRow();
+      const cells = [m.merchant_id + " - " + m.merchant_name, m.risk_level,
+                     m.settlement_rate + "%", m.sla_rate + "%", inr(m.settlement_gap)];
+      cells.forEach((text, i) => {
+        const td = tr.insertCell();
+        td.textContent = text;
+        if (i >= 2) td.className = "num";
+        if ((i === 2 && m.settlement_rate < 95) || (i === 3 && m.sla_rate < 90)) td.classList.add("bad");
+      });
+    }
+  } catch (e) {
+    $("error").textContent = "Could not load data: " + e.message;
+    $("error").style.display = "block";
+  }
+}
+
+$("load").addEventListener("click", load);
+</script>
+</body>
+</html>

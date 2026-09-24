@@ -1,30 +1,24 @@
-# Bank of New York – Merchant Settlement Intelligence Platform
+# Capstone 2 – Bank of New York Settlement Intelligence Platform
 
-Explains the gap between **successful payments** and **settled amounts** and flags merchants with poor settlement.
+| Day | Folder | What | Status |
+|---|---|---|---|
+| **Day 1** | [`day1/`](day1/) | Build the platform: CSV → Bronze → Silver → Gold → FastAPI → dashboard, with tests, security and a deployment design | ✅ working |
+| **Day 2** | [`day2/`](day2/) | Make it production-ready: CI/CD (GitLab + Jenkins), security gates, blue-green deployment, incident recovery, presentation | 📋 plan + learning path |
 
-```
-CSV files → INGESTION → BRONZE → SILVER → GOLD → API (FastAPI) → Dashboard (HTML/JS)
-                                   ↘ AUDIT.DQ_LOG (bad records, never lost)
-```
+Each folder has its own problem statement (`00_problem_statement.pdf`) and a `README.md`. Day 1 also has
+a `GUIDE.md` with step-by-step instructions and the theory to learn for every phase.
 
-**Stack:** Snowflake · Python · FastAPI + Pydantic · Chart.js · pytest · Docker · GitLab CI (design)
-
-📄 Problem statement: [docs/00_problem_statement.pdf](docs/00_problem_statement.pdf)
-
-👉 **Follow [GUIDE.md](GUIDE.md)**: step-by-step, with the theory to learn for every phase.
-
-## Where each task is
-| Brief task | Files |
-|---|---|
-| Task 1 – Specification | `docs/01_business_spec.md`, `docs/02_technical_spec.md`, `docs/03_acceptance.feature` |
-| Task 2 – Data model + pipeline | `docs/04_data_model.md`, `sql/`, `pipeline/` |
-| Task 3 – API + front-end | `api/`, `common/kpi.py`, `frontend/index.html` |
-| Task 4 – Tests, security, deployment | `tests/`, `docs/05_security.md`, `Dockerfile`, `.gitlab-ci.yml`, `docs/06_deployment.md` |
-
-## Commands
+## Quick start (Day 1)
 ```powershell
-python -m common.snowflake_conn              # test Snowflake connection
-python -m pipeline.run_pipeline --init       # load Bronze -> Silver -> Gold
-uvicorn api.main:app --reload                # API + dashboard on http://localhost:8000
-pytest -v                                    # tests
+cd day1
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements-dev.txt
+copy .env.example .env
+python -m pipeline.run_pipeline          # build the database from the CSV files
+python -m common.query sql/06_explore.sql
+pytest                                   # 46 tests
+uvicorn api.main:app --reload            # dashboard: http://localhost:8000
 ```
+
+**Stack:** Python · DuckDB (SQL database in one file) · FastAPI + Pydantic · Chart.js · pytest · Docker · GitLab CI · Jenkins (Day 2)

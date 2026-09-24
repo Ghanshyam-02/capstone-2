@@ -1,0 +1,10 @@
+.env
+data/warehouse/
+data/incoming/
+tests/
+docs/
+*.pdf
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/

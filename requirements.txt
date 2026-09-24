@@ -1,5 +1,0 @@
-snowflake-connector-python>=3.12,<5
-fastapi>=0.115
-uvicorn>=0.30
-pydantic>=2.7
-python-dotenv>=1.0

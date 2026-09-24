@@ -1,9 +1,9 @@
-# Secrets - NEVER commit these
+# Secrets - NEVER commit
 .env
-keys/*
-!keys/.gitkeep
-*.p8
-*.pem
+
+# Database files are built by the pipeline (python -m pipeline.run_pipeline)
+*.duckdb
+*.duckdb.wal
 
 # Python
 __pycache__/
