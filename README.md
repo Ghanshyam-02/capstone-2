@@ -24,7 +24,6 @@ CSV files → INGESTION → BRONZE → SILVER → GOLD → API (FastAPI) → Das
 ## Commands
 ```powershell
 python -m common.snowflake_conn              # test Snowflake connection
-python -m pipeline.generate_data --batch 1   # create CSV files
 python -m pipeline.run_pipeline --init       # load Bronze -> Silver -> Gold
 uvicorn api.main:app --reload                # API + dashboard on http://localhost:8000
 pytest -v                                    # tests

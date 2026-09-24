@@ -1,9 +1,12 @@
 """Generate realistic CSV files WITH the hidden data problems planted.
 
-    python -m pipeline.generate_data --batch 1   # Sep 2026 (30 days) + merchant master
-    python -m pipeline.generate_data --batch 2   # 1 Oct 2026 + late updates (incremental demo)
+The generated files are already in the repo, so you do NOT need to run this:
+    data/raw/*_001.csv       batch 1: Sep 2026 (30 days) + merchant master  -> loaded by the pipeline
+    data/incoming/*_002.csv  batch 2: 1 Oct 2026 + late updates             -> copy to data/raw in Phase 6
 
-Same batch number -> same data every time (fixed random seed).
+To re-create them (same data every time - fixed random seed):
+    python -m pipeline.generate_data --batch 1
+    python -m pipeline.generate_data --batch 2
 
 Patterns built in, so the dashboard has something to explain:
   * busy hours (lunch / evening) and busier weekends
@@ -19,7 +22,7 @@ import random
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-OUT_DIR = Path(__file__).resolve().parent.parent / "data" / "raw"
+DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 FMT = "%Y-%m-%d %H:%M:%S"
 
 # merchant id, name, category, popularity weight
@@ -235,13 +238,14 @@ def plant_problems_batch2(b: Builder, batch1: Builder):
 
 
 def write_csv(name: str, batch: int, rows: list[dict]):
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    path = OUT_DIR / f"{name}_{batch:03d}.csv"
+    out_dir = DATA_DIR / ("raw" if batch == 1 else "incoming")      # batch 2 waits until Phase 6
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / f"{name}_{batch:03d}.csv"
     with path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=COLUMNS[name])
         writer.writeheader()
         writer.writerows(rows)
-    print(f"  wrote data/raw/{path.name}  ({len(rows):,} rows)")
+    print(f"  wrote data/{out_dir.name}/{path.name}  ({len(rows):,} rows)")
 
 
 def main():

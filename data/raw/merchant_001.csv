@@ -1,0 +1,32 @@
+merchant_id,merchant_name,merchant_category,country,risk_level,effective_from,effective_to
+M100,Sharma General Store,GROCERY,India,LOW,2026-01-01,2026-03-31
+M100,Sharma General Store,GROCERY,India,HIGH,2026-04-01,2026-06-30
+M100,Sharma General Store,GROCERY,India,MEDIUM,2026-07-01,
+M101,Metro Electronics,ELECTRONICS,India,LOW,2026-01-01,2026-09-14
+M101,Metro Electronics,ELECTRONICS,India,HIGH,2026-09-15,
+M102,Blue Lotus Restaurant,FOOD,India,LOW,2026-01-01,
+M103,Urban Threads,FASHION,India,MEDIUM,2026-01-01,
+M104,QuickFuel Station,FUEL,India,MEDIUM,2026-01-01,2026-08-31
+M104,QuickFuel Station,FUEL,India,HIGH,2026-09-01,
+M105,CarePlus Pharmacy,HEALTH,India,LOW,2026-01-01,
+M106,BookNook,BOOKS,India,LOW,2026-01-01,
+M107,FitZone Gym,FITNESS,India,LOW,2026-01-01,
+M108,ABC Retail,RETAIL,India,MEDIUM,2026-01-01,2026-08-31
+M108,ABC Retail,RETAIL,India,HIGH,2026-09-01,
+M109,TravelKart,TRAVEL,India,MEDIUM,2026-01-01,
+M110,HomeNest Furnishing,HOME,India,MEDIUM,2026-01-01,
+M111,Spice Route Mart,GROCERY,India,LOW,2026-01-01,
+M112,Pixel Mobile Store,ELECTRONICS,India,LOW,2026-01-01,
+M113,Chai Point Cafe,FOOD,India,LOW,2026-01-01,
+M114,StyleHub Fashion,FASHION,India,LOW,2026-01-01,
+M115,Highway Fuels,FUEL,India,LOW,2026-01-01,
+M116,MedPlus Chemist,HEALTH,India,MEDIUM,2026-01-01,
+M117,MegaMart Hypermarket,RETAIL,India,MEDIUM,2026-01-01,2026-08-31
+M117,MegaMart Hypermarket,RETAIL,India,HIGH,2026-09-01,
+M118,SkyHigh Travels,TRAVEL,India,LOW,2026-01-01,
+M119,Royal Furniture,HOME,India,MEDIUM,2026-01-01,
+M120,Green Basket Organics,GROCERY,India,LOW,2026-01-01,
+M121,Galaxy Electronics,ELECTRONICS,India,MEDIUM,2026-01-01,
+M122,Tandoor Express,FOOD,India,MEDIUM,2026-01-01,
+M123,Little Readers,BOOKS,India,MEDIUM,2026-01-01,
+M124,PowerYoga Studio,FITNESS,India,LOW,2026-01-01,

@@ -5,9 +5,6 @@ keys/*
 *.p8
 *.pem
 
-# Generated data (re-create with: python -m pipeline.generate_data)
-data/raw/*.csv
-
 # Python
 __pycache__/
 *.pyc

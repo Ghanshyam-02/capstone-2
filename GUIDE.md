@@ -12,7 +12,7 @@ Commands are for **Windows PowerShell** (in VS Code: *Terminal → New Terminal*
 | 0. Set up Python | – |
 | 1. Set up Snowflake | – |
 | 2. Specification | Task 1 |
-| 3. Generate the data | – |
+| 3. Look at the data | – |
 | 4. Data model | Task 2 |
 | 5. Pipeline: Bronze → Silver → Gold | Task 2 |
 | 6. Incremental processing | Task 2 |
@@ -109,11 +109,13 @@ You can explain why a negative settlement is *quarantined* (it may be a refund, 
 
 ---
 
-## Phase 3: Generate the data
+## Phase 3: Look at the data
 
 ### Theory to learn
-- **Synthetic test data**: the brief gives only column lists, so we generate realistic CSVs. Every hidden problem is planted **on purpose**, so we can prove the pipeline handles it.
-- **Fixed random seed**: the same "random" data every run, so results are repeatable.
+- **Synthetic test data**: the brief gives only column lists, so `pipeline/generate_data.py` created realistic CSVs. Every hidden problem is planted **on purpose**, so we can prove the pipeline handles it.
+- **The CSVs are in the repo**: everyone uses exactly the same data, so nothing needs generating.
+  - `data/raw/`: batch 1 (Sep 2026). The pipeline loads this folder.
+  - `data/incoming/`: batch 2 (1 Oct 2026). Kept aside for the incremental demo in Phase 6.
 
 | Hidden problem | Where it is in the data |
 |---|---|
@@ -125,13 +127,19 @@ You can explain why a negative settlement is *quarantined* (it may be a refund, 
 | Abnormal merchants | M104, M108, M117 often unsettled. M110, M121 settle late |
 | Missing merchant, invalid currency, negative settlement, orphan settlement, duplicate events | a few rows of each |
 
+| File | Rows |
+|---|---|
+| `data/raw/merchant_001.csv` | 31 (25 merchants + risk history) |
+| `data/raw/transactions_001.csv` | 3,830 |
+| `data/raw/settlements_001.csv` | 3,641 |
+| `data/raw/payment_events_001.csv` | 10,833 |
+| `data/incoming/*_002.csv` | 120 / 123 / 333 (batch 2) |
+
 ### Steps
-```powershell
-python -m pipeline.generate_data --batch 1
-```
+Open `data/raw/transactions_001.csv` in VS Code or Excel and look around.
 
 ### Check
-4 CSV files appear in `data/raw/`. Open `transactions_001.csv` and find a row with an empty merchant_id.
+You can find a row with an empty merchant_id, and `T1001` in `transactions_001.csv`.
 
 ---
 
@@ -213,8 +221,8 @@ The pipeline prints something like `[silver] transactions read=3830 loaded=3800 
 ### Steps
 ```powershell
 python -m pipeline.run_pipeline
-python -m pipeline.generate_data --batch 2
-python -m pipeline.run_pipeline
+copy data\incoming\*.csv data
+aw\npython -m pipeline.run_pipeline
 ```
 
 ### Check
@@ -383,7 +391,7 @@ Every requirement in `docs/00_problem_statement.pdf`, and where it is done.
 ### 2–3. Data sources and hidden problems
 | Item | Where |
 |---|---|
-| 4 CSV files with the given columns | `pipeline/generate_data.py`, `data/raw/` |
+| 4 CSV files with the given columns | `data/raw/`, `data/incoming/` (made by `pipeline/generate_data.py`) |
 | Issue 1: one-to-many settlement | settlements summed per transaction in `V_TXN_SETTLEMENT`, test `T1001` |
 | Issue 2: late-arriving events | `event_ts` vs `ingestion_ts`, `IS_LATE`, `LATE_EVENT` warning |
 | Issue 3: out-of-order events | `EVENT_SEQ` ordered by `event_ts` |
