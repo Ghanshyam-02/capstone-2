@@ -2,6 +2,9 @@
 
 📄 Problem statement: [00_problem_statement.pdf](00_problem_statement.pdf)
 
+📚 Theory for every Day 2 topic: **[LEARN.md](LEARN.md)**
+🎤 Leadership presentation / viva script with Q&A: **[VIVA_SCRIPT.md](VIVA_SCRIPT.md)**
+
 > **Status:** plan + learning path. Implementation comes next, step by step, once you are comfortable
 > with the tools below.
 

@@ -2,6 +2,7 @@
 
 📄 Problem statement: [00_problem_statement.pdf](00_problem_statement.pdf)
 👉 Step-by-step instructions with theory: **[GUIDE.md](GUIDE.md)**
+🎤 Presentation / viva script with Q&A: **[VIVA_SCRIPT.md](VIVA_SCRIPT.md)**
 
 ---
 

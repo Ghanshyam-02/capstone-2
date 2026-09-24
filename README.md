@@ -5,8 +5,13 @@
 | **Day 1** | [`day1/`](day1/) | Build the platform: CSV → Bronze → Silver → Gold → FastAPI → dashboard, with tests, security and a deployment design | ✅ working |
 | **Day 2** | [`day2/`](day2/) | Make it production-ready: CI/CD (GitLab + Jenkins), security gates, blue-green deployment, incident recovery, presentation | 📋 plan + learning path |
 
-Each folder has its own problem statement (`00_problem_statement.pdf`) and a `README.md`. Day 1 also has
-a `GUIDE.md` with step-by-step instructions and the theory to learn for every phase.
+Each folder has its own problem statement (`00_problem_statement.pdf`) and:
+
+| File | Day 1 | Day 2 |
+|---|---|---|
+| `README.md` | what we built and how | what is asked, the plan, what to learn |
+| `GUIDE.md` / `LEARN.md` | step-by-step + theory for every phase | theory for every Day 2 topic |
+| `VIVA_SCRIPT.md` | presentation script + 30 viva Q&A | 8-slide leadership script + peer review + 20 viva Q&A |
 
 ## Quick start (Day 1)
 Needs Python 3.10+ and Git.
