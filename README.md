@@ -9,6 +9,8 @@ CSV files → INGESTION → BRONZE → SILVER → GOLD → API (FastAPI) → Das
 
 **Stack:** Snowflake · Python · FastAPI + Pydantic · Chart.js · pytest · Docker · GitLab CI (design)
 
+📄 Problem statement: [docs/00_problem_statement.pdf](docs/00_problem_statement.pdf)
+
 👉 **Follow [GUIDE.md](GUIDE.md)**: step-by-step, with the theory to learn for every phase.
 
 ## Where each task is
