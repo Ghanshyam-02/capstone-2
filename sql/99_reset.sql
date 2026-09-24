@@ -1,7 +1,7 @@
 -- =====================================================================
 -- 99_reset.sql - start again from zero (keeps tables, deletes data).
 -- Run in Snowsight as SYSADMIN, then: python -m pipeline.run_pipeline
--- (to redo the incremental demo, first delete dataaw\*_002.csv)
+-- (to redo the incremental demo, first delete data\raw\*_002.csv)
 -- =====================================================================
 USE DATABASE SETTLEMENT_DB;
 USE WAREHOUSE SETTLE_WH;
