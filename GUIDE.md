@@ -58,13 +58,12 @@ The prompt starts with `(.venv)`. `pytest tests/unit -v` shows all tests passing
 - **Key-pair authentication**: programs log in with a *private key* file instead of a password. Snowflake keeps only the matching *public key*. This is the standard way for service accounts (and scripts cannot answer MFA prompts).
 
 ### Steps
-1. **Create the key pair.** Open *Git Bash* in the project folder:
-   ```bash
-   openssl genrsa 2048 | openssl pkcs8 -topk8 -inform PEM -out keys/rsa_key.p8 -nocrypt
-   openssl rsa -in keys/rsa_key.p8 -pubout -out keys/rsa_key.pub
-   cat keys/rsa_key.pub
+1. **Create the key pair** (in the normal PowerShell terminal, with `.venv` active):
+   ```powershell
+   python -m common.create_keys
    ```
-2. **Run the setup SQL.** In Snowsight open *Projects → Worksheets → +* and paste `sql/00_setup.sql`. Replace `PASTE_YOUR_PUBLIC_KEY_HERE` with the text between the BEGIN/END lines of the public key, all on one line. Then click **Run All**.
+   It creates `keys/rsa_key.p8` (private, never share it, git-ignored) and `keys/rsa_key.pub`, and prints the public key as **one line**.
+2. **Run the setup SQL.** In Snowsight open *Projects → Worksheets → +* and paste `sql/00_setup.sql`. Replace `PASTE_YOUR_PUBLIC_KEY_HERE` with the one-line public key. Then click **Run All**.
 3. **Find your account identifier.** In Snowsight, click your name (bottom-left), then *Account → View account details*, and copy the **Account identifier**.
 4. **Fill in `.env`.**
    - Set `SNOWFLAKE_ACCOUNT` to the account identifier.

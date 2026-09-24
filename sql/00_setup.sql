@@ -38,8 +38,7 @@ GRANT SELECT ON FUTURE TABLES IN SCHEMA SETTLEMENT_DB.GOLD TO ROLE API_ROLE;
 GRANT SELECT ON FUTURE VIEWS  IN SCHEMA SETTLEMENT_DB.GOLD TO ROLE API_ROLE;
 
 -- 4. Service user that logs in with a key pair (no password).
---    Paste the contents of keys/rsa_key.pub WITHOUT the
---    "-----BEGIN PUBLIC KEY-----" / "-----END PUBLIC KEY-----" lines, all on one line.
+--    Paste the one-line public key printed by:  python -m common.create_keys
 CREATE USER IF NOT EXISTS SETTLE_SVC
   TYPE = SERVICE
   DEFAULT_ROLE = PIPELINE_ROLE
