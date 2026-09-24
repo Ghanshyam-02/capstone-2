@@ -118,7 +118,9 @@ You can explain why a negative settlement is *quarantined* (it may be a refund, 
 | One-to-many settlement | `T1001`: 10,000 settled as 8,000 + 2,000 |
 | Late event | `E1LATE01`: happened 10:02:15, received 10:08:41 |
 | Out-of-order events | rows shuffled. T1001 arrives SETTLED → AUTHORIZED → CREATED |
-| Risk history | M100 LOW → HIGH → MEDIUM. M101 LOW → HIGH on 4 Sep |
+| Risk history | M100 LOW → HIGH → MEDIUM. M101 LOW → HIGH on 15 Sep |
+| Settlement incident | 15 Sep: many settlements late or pending → spike on the daily chart |
+| Abnormal merchants | M104, M108, M117 often unsettled. M110, M121 settle late |
 | Missing merchant, invalid currency, negative settlement, orphan settlement, duplicate events | a few rows of each |
 
 ### Steps
@@ -187,11 +189,11 @@ Then in Snowsight run the queries in `sql/05_explore_checks.sql` one by one:
 - **C**: the data-quality log
 - **D**: T1001, and the wrong-join demo
 - **E**: late events
-- **F**: M101's risk changing on 4 Sep
+- **F**: M101's risk changing on 15 Sep
 - **G**: *why is there a gap?*
 
 ### Check
-The pipeline prints something like `[silver] transactions read= 176 loaded= 170 quarantined= 6 ...`, and query D shows T1001 settled = 10,000, not 20,000.
+The pipeline prints something like `[silver] transactions read=3830 loaded=3800 quarantined= 30 ...`, and query D shows T1001 settled = 10,000, not 20,000.
 
 ---
 
@@ -213,7 +215,7 @@ python -m pipeline.run_pipeline
 ### Check
 - The first run loads **0 new files**.
 - After batch 2, only the `*_002.csv` files load.
-- Batch 2 also turns 4 PENDING settlements from batch 1 into SETTLED, so the old days' settlement rate goes up.
+- Batch 2 (1 Oct) also turns 20 PENDING settlements from batch 1 into SETTLED, so the old days' settlement rate goes up.
 - Look at `SELECT * FROM AUDIT.WATERMARK;` and `SELECT * FROM AUDIT.PIPELINE_RUNS;`
 
 ---
@@ -245,12 +247,12 @@ uvicorn api.main:app --reload
 Open http://localhost:8000/docs. In a **second** terminal:
 ```powershell
 $h = @{ "X-API-Key" = "<API_KEY from your .env>" }
-Invoke-RestMethod "http://localhost:8000/api/v1/settlement-summary?start_date=2026-09-01&end_date=2026-09-08" -Headers $h
+Invoke-RestMethod "http://localhost:8000/api/v1/settlement-summary?start_date=2026-09-01&end_date=2026-10-01" -Headers $h
 Invoke-RestMethod "http://localhost:8000/api/v1/merchant-exceptions" -Headers $h
 ```
 
 ### Check
-The summary has the 6 fields from the brief, plus `merchant_risk_count` (KPI 5). The exceptions list includes M104 and M108 (HIGH risk) and M110 (slow settlement).
+The summary has the 6 fields from the brief, plus `merchant_risk_count` (KPI 5). The exceptions list includes M104, M108, M117 (HIGH risk, low settlement rate) and M110, M121 (slow settlement, low SLA).
 
 ---
 
@@ -309,7 +311,7 @@ Everything is green. Try changing `SLA_SECONDS` in `pipeline/rules.py` and watch
 ### Steps
 Read `docs/05_security.md`, then try the injection attack (it returns 422):
 ```powershell
-Invoke-RestMethod "http://localhost:8000/api/v1/settlement-summary?start_date=2026-09-01&end_date=2026-09-08&merchant_id=M100'%20OR%20'1'='1" -Headers $h
+Invoke-RestMethod "http://localhost:8000/api/v1/settlement-summary?start_date=2026-09-01&end_date=2026-10-01&merchant_id=M100'%20OR%20'1'='1" -Headers $h
 ```
 
 ### Check

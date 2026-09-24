@@ -34,7 +34,7 @@ Feature: Merchant settlement intelligence
     And reports should use event_ts (business time), not ingestion_ts
 
   Scenario: A merchant with poor settlement appears in the exception API
-    Given merchant M108 has settlement rate 78% and SLA 25% in the selected period
+    Given merchant M108 has settlement rate 76% and SLA 43% in the selected period
     When I call GET /api/v1/merchant-exceptions
     Then the response should contain M108 with its risk level
 

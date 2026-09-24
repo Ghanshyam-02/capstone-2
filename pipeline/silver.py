@@ -85,9 +85,9 @@ def process_source(conn, source: str, run_id: str) -> dict:
 
     # 3. put good rows in a temporary table, then MERGE (insert new / update existing)
     cur.execute(f"CREATE OR REPLACE TEMPORARY TABLE AUDIT.STAGING AS SELECT {', '.join(cols)} FROM {silver} WHERE 1 = 0")
-    if good:
-        cur.executemany(f"INSERT INTO AUDIT.STAGING ({', '.join(cols)}) VALUES ({', '.join(['%s'] * len(cols))})",
-                        [tuple(r.get(c) for c in cols) for r in good])
+    insert = f"INSERT INTO AUDIT.STAGING ({', '.join(cols)}) VALUES ({', '.join(['%s'] * len(cols))})"
+    for i in range(0, len(good), 1000):           # 1,000 rows per statement keeps each INSERT small
+        cur.executemany(insert, [tuple(r.get(c) for c in cols) for r in good[i:i + 1000]])
     on = " AND ".join(f"t.{k} = s.{k}" for k in KEYS[source])
     update = ", ".join(f"t.{c} = s.{c}" for c in cols if c not in KEYS[source])
 
@@ -95,9 +95,9 @@ def process_source(conn, source: str, run_id: str) -> dict:
     cur.execute(f"MERGE INTO {silver} t USING AUDIT.STAGING s ON {on} "
                 f"WHEN MATCHED THEN UPDATE SET {update}, t.LOADED_AT = CURRENT_TIMESTAMP() "
                 f"WHEN NOT MATCHED THEN INSERT ({', '.join(cols)}) VALUES ({', '.join('s.' + c for c in cols)})")
-    if problems:
+    for i in range(0, len(problems), 1000):
         cur.executemany("INSERT INTO AUDIT.DQ_LOG (RUN_ID, SOURCE, RECORD_KEY, SEVERITY, REASON, RAW_RECORD) "
-                        "VALUES (%s, %s, %s, %s, %s, %s)", [(run_id, source, *p) for p in problems])
+                        "VALUES (%s, %s, %s, %s, %s, %s)", [(run_id, source, *p) for p in problems[i:i + 1000]])
     cur.execute("UPDATE AUDIT.WATERMARK SET LAST_LOAD_TS = GREATEST($hi, LAST_LOAD_TS) WHERE SOURCE = %s",
                 (source,))
     cur.execute("COMMIT")
