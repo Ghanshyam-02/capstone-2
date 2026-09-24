@@ -12,17 +12,12 @@ import snowflake.connector
 
 from common import config
 from pipeline import rules
-from pipeline.generate_data import COLUMNS
+from pipeline.ingest import COLUMNS, SOURCES
 
-SOURCES = ["merchant", "transactions", "settlements", "payment_events"]   # order matters
 KEYS = {"merchant": ["merchant_id", "effective_from"], "transactions": ["transaction_id"],
         "settlements": ["settlement_id"], "payment_events": ["event_id"]}
-SILVER_COLUMNS = {
-    "merchant": COLUMNS["merchant"],
-    "transactions": COLUMNS["transactions"],
-    "settlements": COLUMNS["settlements"],
-    "payment_events": COLUMNS["payment_events"] + ["ingestion_delay_sec", "is_late"],
-}
+# Silver has the same columns as the file, plus 2 calculated columns for events
+EXTRA_COLUMNS = {"payment_events": ["ingestion_delay_sec", "is_late"]}
 
 
 def ids(cur, sql) -> set:
@@ -68,7 +63,7 @@ def validate(source: str, raw_rows: list[dict], cur) -> tuple[list[dict], list[t
 def process_source(conn, source: str, run_id: str) -> dict:
     cur = conn.cursor()
     bronze, silver = f"BRONZE.{source.upper()}", f"SILVER.{source.upper()}"
-    cols = SILVER_COLUMNS[source] + ["source_file"]
+    cols = COLUMNS[source] + EXTRA_COLUMNS.get(source, []) + ["source_file"]
 
     # 1. read only rows newer than the watermark.
     #    (table/column names come from the constants above, never from user input)

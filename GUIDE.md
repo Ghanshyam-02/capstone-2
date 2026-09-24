@@ -112,8 +112,8 @@ You can explain why a negative settlement is *quarantined* (it may be a refund, 
 ## Phase 3: Look at the data
 
 ### Theory to learn
-- **Synthetic test data**: the brief gives only column lists, so `pipeline/generate_data.py` created realistic CSVs. Every hidden problem is planted **on purpose**, so we can prove the pipeline handles it.
-- **The CSVs are in the repo**: everyone uses exactly the same data, so nothing needs generating.
+- **Test data**: the brief gives only column lists, so realistic CSV files are provided in the repo. Every hidden problem from the brief is planted in them **on purpose**, so we can prove the pipeline handles it.
+- **Two folders**:
   - `data/raw/`: batch 1 (Sep 2026). The pipeline loads this folder.
   - `data/incoming/`: batch 2 (1 Oct 2026). Kept aside for the incremental demo in Phase 6.
 
@@ -391,7 +391,7 @@ Every requirement in `docs/00_problem_statement.pdf`, and where it is done.
 ### 2–3. Data sources and hidden problems
 | Item | Where |
 |---|---|
-| 4 CSV files with the given columns | `data/raw/`, `data/incoming/` (made by `pipeline/generate_data.py`) |
+| 4 CSV files with the given columns | `data/raw/`, `data/incoming/` |
 | Issue 1: one-to-many settlement | settlements summed per transaction in `V_TXN_SETTLEMENT`, test `T1001` |
 | Issue 2: late-arriving events | `event_ts` vs `ingestion_ts`, `IS_LATE`, `LATE_EVENT` warning |
 | Issue 3: out-of-order events | `EVENT_SEQ` ordered by `event_ts` |

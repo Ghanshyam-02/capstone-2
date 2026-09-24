@@ -1,6 +1,6 @@
 """SOURCE FILES -> INGESTION -> BRONZE.
 
-1. PUT  : upload the local CSV files into the Snowflake stage @BRONZE.RAW_STAGE
+1. PUT  : upload the CSV files from data/raw into the Snowflake stage @BRONZE.RAW_STAGE
 2. COPY : load the staged files into the BRONZE tables (every column as text)
 
 Snowflake remembers which files COPY has already loaded and skips them,
@@ -8,10 +8,21 @@ so running this again only loads NEW files (incremental ingestion).
 """
 from pathlib import Path
 
-from pipeline.generate_data import COLUMNS
-from pipeline.silver import SOURCES
-
 RAW_DIR = Path(__file__).resolve().parent.parent / "data" / "raw"
+
+# The 4 source files and their columns (from the brief). Order matters:
+# merchants before transactions, transactions before settlements and events.
+COLUMNS = {
+    "merchant": ["merchant_id", "merchant_name", "merchant_category", "country",
+                 "risk_level", "effective_from", "effective_to"],
+    "transactions": ["transaction_id", "merchant_id", "customer_id", "transaction_ts",
+                     "amount", "currency", "status", "payment_channel"],
+    "settlements": ["settlement_id", "transaction_id", "settlement_ts", "settlement_amount",
+                    "settlement_status", "settlement_batch"],
+    "payment_events": ["event_id", "transaction_id", "event_type", "event_ts",
+                       "ingestion_ts", "processing_ms"],
+}
+SOURCES = list(COLUMNS)
 
 
 def ingest_to_bronze(conn) -> int:
