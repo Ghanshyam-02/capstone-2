@@ -221,8 +221,8 @@ The pipeline prints something like `[silver] transactions read=3830 loaded=3800 
 ### Steps
 ```powershell
 python -m pipeline.run_pipeline
-copy data\incoming\*.csv data
-aw\npython -m pipeline.run_pipeline
+copy data\incoming\*.csv data\raw\
+python -m pipeline.run_pipeline
 ```
 
 ### Check
