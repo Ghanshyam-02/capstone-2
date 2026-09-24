@@ -14,7 +14,15 @@ CSV files ──PUT──▶ Snowflake stage ──COPY──▶ BRONZE ──Py
 | merchant_NNN.csv | one merchant risk period (history) | merchant_id + effective_from |
 | payment_events_NNN.csv | one lifecycle event (can be late / out of order / duplicated) | event_id |
 
-Fields: see the brief section 2; typed versions in `sql/02_silver_ddl.sql`.
+## Fields (Silver types)
+| File | Field → type |
+|---|---|
+| transactions | transaction_id VARCHAR · merchant_id VARCHAR · customer_id VARCHAR (hashed in Gold) · transaction_ts TIMESTAMP · amount NUMBER(18,2) · currency CHAR(3) = INR · status SUCCESS/FAILED/REVERSED · payment_channel POS/ONLINE/QR |
+| settlements | settlement_id VARCHAR · transaction_id VARCHAR · settlement_ts TIMESTAMP · settlement_amount NUMBER(18,2) ≥ 0 · settlement_status SETTLED/PENDING/FAILED · settlement_batch VARCHAR |
+| merchant | merchant_id VARCHAR · merchant_name · merchant_category · country · risk_level LOW/MEDIUM/HIGH · effective_from DATE · effective_to DATE (empty = current) |
+| payment_events | event_id VARCHAR · transaction_id VARCHAR · event_type CREATED/AUTHORIZED/SETTLED/FAILED · event_ts TIMESTAMP (business time) · ingestion_ts TIMESTAMP (processing time) · processing_ms NUMBER · + derived ingestion_delay_sec, is_late |
+
+Every Bronze column is VARCHAR (raw). Types are applied in Silver (`sql/02_silver_ddl.sql`).
 
 ## Processing
 | Step | Where | What |

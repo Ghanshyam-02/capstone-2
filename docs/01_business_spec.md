@@ -51,6 +51,7 @@ REST API, HTML dashboard, automated tests, CI/CD design.
 | Settlement without matching transaction | **Quarantine** | Orphan, held in DQ log |
 | Event arriving after SLA (late) | **Warning** | Loaded, flagged `IS_LATE`, logged |
 | Successful transaction not (fully) settled | **Business exception** | Loaded, classified UNSETTLED / PENDING / PARTIALLY_SETTLED, shown in `GOLD.V_SETTLEMENT_EXCEPTIONS` |
+| Settled, but more than 30 min after the transaction | **Business exception** | Loaded, classified DELAYED (with delay in minutes), shown in `GOLD.V_SETTLEMENT_EXCEPTIONS` |
 
 ## Acceptance criteria
 1. Dashboard shows the KPI cards, the daily chart, the top-10 gap chart and the merchant table, **from the API only**.

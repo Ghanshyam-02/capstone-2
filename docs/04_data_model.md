@@ -47,3 +47,11 @@ erDiagram
 | SILVER | same four, typed | validated, de-duplicated, upserted |
 | GOLD | dims, facts, AGG, views | business logic |
 | AUDIT | DQ_LOG, WATERMARK, PIPELINE_RUNS | control + monitoring |
+
+**Staging tables:** the BRONZE tables are the staging (landing) area: raw copies of each file.
+During the Silver step, the good rows first go to a temporary staging table (`AUDIT.STAGING`) and are then
+MERGEd into Silver in one transaction.
+
+**Views for investigation:** `GOLD.V_TXN_SETTLEMENT` (one row per transaction with its settled amount, gap,
+delay in minutes and SLA flag) and `GOLD.V_SETTLEMENT_EXCEPTIONS` (unsettled, pending, partly settled or
+**delayed** settlements).

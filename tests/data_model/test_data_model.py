@@ -53,6 +53,14 @@ def test_settlement_reconciliation(sql):
     assert successful == fact_total == kpi_total
 
 
+def test_transaction_count_reconciliation(sql):
+    # every successful transaction is in exactly one bucket: settled / partly / pending / unsettled
+    successful = sql("SELECT COUNT(*) FROM GOLD.FACT_TRANSACTION WHERE STATUS = 'SUCCESS'")[0][0]
+    buckets = sql("SELECT SETTLEMENT_CLASS, COUNT(*) FROM GOLD.V_TXN_SETTLEMENT GROUP BY 1")
+    assert successful == sum(count for _, count in buckets)
+    assert successful == sql("SELECT SUM(SUCCESS_COUNT) FROM GOLD.AGG_MERCHANT_DAILY")[0][0]
+
+
 def test_split_settlement_counted_once(sql):
     assert sql("SELECT AMOUNT, SETTLED_AMOUNT, SETTLEMENT_RECORDS FROM GOLD.V_TXN_SETTLEMENT "
                "WHERE TRANSACTION_ID = 'T1001'") == [(10000, 10000, 2)]

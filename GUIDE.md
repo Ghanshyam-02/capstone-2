@@ -22,6 +22,8 @@ Commands are for **Windows PowerShell** (in VS Code: *Terminal → New Terminal*
 | 10. Security | Task 4 D |
 | 11. Docker & deployment | Task 4 E |
 
+At the end: a **checklist** mapping every requirement in the problem statement (`docs/00_problem_statement.pdf`) to where it is done.
+
 ---
 
 ## Phase 0: Set up Python
@@ -146,6 +148,7 @@ python -m pipeline.generate_data --batch 1
 - **Surrogate key**: an internal number (`MERCHANT_SK`) used instead of the business id, because one merchant id now has several history rows.
 - **SCD Type 2 (Slowly Changing Dimension)**: keep **history**. Every time the risk level changes, add a new row with `EFFECTIVE_FROM` / `EFFECTIVE_TO`. A February transaction joins to the row valid in February.
 - **One-to-many trap**: if you join a transaction (10,000) to its 2 settlements, the 10,000 appears twice, so the total becomes 20,000. The fix is to **sum settlements per transaction first**, then join (`GOLD.V_TXN_SETTLEMENT`).
+- **Staging table**: a landing table that holds raw data before it is cleaned. Our BRONZE tables are the staging layer, and Silver uses a temporary `AUDIT.STAGING` table before its MERGE.
 - **Snowflake specifics**:
   - PK/FK are *declared but not enforced* (only NOT NULL is), so tests must prove them.
   - There are *no indexes*. Snowflake prunes data automatically, and large tables use clustering keys.
@@ -178,6 +181,7 @@ You can draw the star: DIM_DATE, DIM_MERCHANT and DIM_CUSTOMER around FACT_TRANS
   - `ingestion_ts` is when *we received it*. It is used to detect late events.
 - **Out-of-order events**: the arrival order is not the real order. `EVENT_SEQ = ROW_NUMBER() OVER (PARTITION BY transaction ORDER BY event_ts)` restores the real sequence.
 - **"Invalid records should not silently disappear"**: every rejected or quarantined row is written to `AUDIT.DQ_LOG` with its reason.
+- **Exception report**: `GOLD.V_SETTLEMENT_EXCEPTIONS` lists every successful payment that is UNSETTLED, PENDING, PARTIALLY_SETTLED or DELAYED (settled after 30 min, with `SETTLEMENT_DELAY_MIN`). Operations uses it to investigate the gap and the delays.
 
 ### Steps
 ```powershell
@@ -190,7 +194,8 @@ Then in Snowsight run the queries in `sql/05_explore_checks.sql` one by one:
 - **D**: T1001, and the wrong-join demo
 - **E**: late events
 - **F**: M101's risk changing on 15 Sep
-- **G**: *why is there a gap?*
+- **G**: *why is there a gap?* (unsettled / pending / partly settled)
+- **H / H2**: the settlement exception report and **delayed settlements**. Which merchants are slow, and the 15 Sep spike.
 
 ### Check
 The pipeline prints something like `[silver] transactions read=3830 loaded=3800 quarantined= 30 ...`, and query D shows T1001 settled = 10,000, not 20,000.
@@ -281,7 +286,7 @@ You see the KPI cards, the daily transaction vs settlement chart, the top-10 gap
 - **Data-model tests**: run SQL on the real tables:
   - *grain*: no duplicate keys
   - *referential integrity*: no transaction points to a missing merchant
-  - *reconciliation*: successful = settled + unsettled
+  - *reconciliation*: successful amount = settled + unsettled, and every successful transaction falls in exactly one settlement bucket
 
   Because Snowflake does not enforce keys, these tests are the proof.
 
@@ -356,3 +361,85 @@ http://localhost:8000/ works from inside the container, and `docker ps` shows `(
 | `Object does not exist or not authorized` | run all of `sql/00_setup.sql`, then the pipeline with `--init` |
 | Dashboard shows `401` | paste the same `API_KEY` that is in `.env` |
 | Start from zero | run `sql/99_reset.sql` in Snowsight, then the pipeline again |
+
+---
+
+## Checklist against the problem statement
+
+Every requirement in `docs/00_problem_statement.pdf`, and where it is done.
+
+### 1. Business goals
+| Operations must be able to… | Where |
+|---|---|
+| View payment and settlement performance | Dashboard KPI cards + daily chart, `/settlement-summary` |
+| Identify settlement gaps | KPI 3, top-10 gap chart, `GOLD.V_TXN_SETTLEMENT` (`GAP_AMOUNT`), query G |
+| Investigate delayed settlements | `SETTLEMENT_DELAY_MIN` + `GOLD.V_SETTLEMENT_EXCEPTIONS` (type DELAYED), query H2 |
+| Identify merchants with abnormal settlement behaviour | `/merchant-exceptions`, merchant table (red values), KPI 5 |
+| Expose the analytics through an API | `api/` (FastAPI) |
+| Consume the API through a web dashboard | `frontend/index.html` |
+| Process new data incrementally | COPY load history + `AUDIT.WATERMARK` + changed-dates rebuild (Phase 6) |
+| Automatically test the implementation | `tests/` + test stage in `.gitlab-ci.yml` |
+
+### 2–3. Data sources and hidden problems
+| Item | Where |
+|---|---|
+| 4 CSV files with the given columns | `pipeline/generate_data.py`, `data/raw/` |
+| Issue 1: one-to-many settlement | settlements summed per transaction in `V_TXN_SETTLEMENT`, test `T1001` |
+| Issue 2: late-arriving events | `event_ts` vs `ingestion_ts`, `IS_LATE`, `LATE_EVENT` warning |
+| Issue 3: out-of-order events | `EVENT_SEQ` ordered by `event_ts` |
+| Issue 4: merchant risk changes | SCD2 `DIM_MERCHANT`, `RISK_LEVEL_AT_TXN` |
+| Issue 5: missing merchant, duplicate events, negative settlement, transaction without settlement, settlement without transaction, invalid currency, late events | `pipeline/rules.py` + classification table in `docs/01_business_spec.md` |
+| Decide reject / quarantine / warning / business exception | `docs/01_business_spec.md` (business rules) |
+
+### 4. KPIs
+| KPI | Where |
+|---|---|
+| 1 Transaction volume · 2 Settlement rate · 3 Settlement gap · 4 SLA (30 min) · 5 Merchant risk (rate < 95% AND SLA < 90%) | `common/kpi.py`, `/settlement-summary`, dashboard cards |
+
+### 5. Engineering requirement
+| Requirement | Where |
+|---|---|
+| Not a single script; layers Source → Ingestion → Bronze → Silver → Gold → API → Front-end | `pipeline/ingest.py`, `pipeline/silver.py`, `sql/04_gold_transform.sql`, `api/`, `frontend/` |
+| Incremental processing | Phase 6 |
+
+### Task 1: Specification package
+| Item | Where |
+|---|---|
+| Business spec: problem, objective, users, KPIs, scope, assumptions, business rules, acceptance criteria | `docs/01_business_spec.md` |
+| Technical spec: data sources, fields, processing, storage, API, front-end, validation, monitoring, security | `docs/02_technical_spec.md` |
+| At least 5 Gherkin scenarios | `docs/03_acceptance.feature` (8 scenarios) |
+
+### Task 2: Data model + pipeline
+| Item | Where |
+|---|---|
+| DIM_DATE, DIM_MERCHANT, DIM_CUSTOMER, FACT_TRANSACTION, FACT_SETTLEMENT, FACT_PAYMENT_EVENT | `sql/03_gold_ddl.sql` |
+| Justify the model + grain of every fact table | `docs/04_data_model.md` |
+| DDL, primary keys, foreign keys, constraints | `sql/01..03_*.sql` |
+| Indexes / partitioning | `docs/04_data_model.md` (Snowflake micro-partitions, clustering key note) |
+| Staging tables | Bronze tables + `AUDIT.STAGING` |
+| Raw → Validation → Clean → Business transformation → Gold | Bronze → `rules.py` → Silver → Gold SQL |
+| Invalid records must not silently disappear | `AUDIT.DQ_LOG` |
+
+### Task 3: API + front-end
+| Item | Where |
+|---|---|
+| `GET /api/v1/settlement-summary` (start_date, end_date, merchant_id) with the 6 response fields | `api/main.py` |
+| `GET /api/v1/merchant-exceptions` (rate < 95% OR SLA < 90%) | `api/main.py` |
+| FastAPI, Pydantic, OpenAPI | `api/main.py`, `api/models.py`, `/docs` |
+| KPI cards: Transactions, ₹ Volume, Settlement Rate, Settlement Gap, SLA Rate | dashboard |
+| Chart 1: daily transaction vs settlement amount | dashboard (`/daily-trend`) |
+| Chart 2: top 10 merchants with settlement gaps | dashboard (`/merchants`) |
+| Table: Merchant, Risk, Settlement Rate, SLA, Settlement Gap | dashboard |
+| Front-end uses the API, not CSV files | `frontend/index.html` only calls `/api/v1/...` |
+
+### Task 4: Testing, security, deployment
+| Item | Where |
+|---|---|
+| Unit tests: successful, failed, duplicate event, missing merchant, unmatched settlement, negative settlement, late event, settlement calculation | `tests/unit/test_rules.py` |
+| Data-model tests: grain, referential integrity, settlement reconciliation | `tests/data_model/test_data_model.py` |
+| API contract tests: 200, 400, 404, 422, 0 ≤ settlement_rate ≤ 100 | `tests/api/test_api_contract.py` |
+| Security: SQL injection, unrestricted access, secrets, PII, logging, authorization | `docs/05_security.md` |
+| Parameterized queries | `api/repository.py` |
+| Deployment: GitLab → CI (tests, SAST, dependency scan, docker build) → DEV → TEST → PROD | `.gitlab-ci.yml`, `Dockerfile` |
+| Environment configuration, secrets, health check, smoke test, rollback | `docs/06_deployment.md` |
+

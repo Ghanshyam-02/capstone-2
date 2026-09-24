@@ -43,3 +43,10 @@ Feature: Merchant settlement intelligence
     When batch 2 files arrive and the pipeline runs again
     Then batch 1 files should not be loaded again
     And only the dates affected by batch 2 should be recalculated
+
+  Scenario: Investigate a delayed settlement
+    Given a successful payment at 10:00
+    And it was fully settled at 10:45
+    When the settlement pipeline runs
+    Then the transaction should miss the 30-minute SLA
+    And it should appear in the settlement exception report as DELAYED with a delay of 45 minutes
