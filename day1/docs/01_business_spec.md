@@ -36,7 +36,7 @@ REST API, HTML dashboard, automated tests, CI/CD design.
 2. "Settled" means `settlement_status = SETTLED`. PENDING / FAILED records settle nothing.
 3. Settled amount per transaction is **capped** at the transaction amount (rates never exceed 100 %).
 4. SLA is measured per successful transaction: time from `transaction_ts` to its **last** SETTLED record.
-5. An event is **late** if `ingestion_ts − event_ts > 5 minutes` (configurable).
+5. An event is **late** if `ingestion_ts − event_ts > 5 minutes` (rule in `sql/04_bronze_to_silver.sql`).
 6. Timestamps are local business time (IST), no time-zone conversion.
 7. A merchant's risk level for a transaction is the one valid **on the transaction date**.
 
