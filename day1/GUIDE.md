@@ -35,16 +35,18 @@ At the end: a **checklist** mapping every requirement of the problem statement t
 - **DuckDB**: a SQL database that lives in **one file** on your computer. No server, account or password. It is built for analytics (fast GROUP BY / joins), like a mini data warehouse.
 
 ### Steps
+You need **Python 3.10 or newer** (`python --version`) and **Git**.
 ```powershell
-git pull
-cd day1
+git clone https://github.com/Ghanshyam-02/capstone-2.git
+cd capstone-2\day1
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements-dev.txt
 copy .env.example .env
+code .
 ```
 > If `activate` is blocked, run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once.
-> If you already have a `.venv` in the repo root from before, you can delete it and create a new one here.
+> `code .` opens the `day1` folder in VS Code. Open a new terminal there and run `.venv\Scripts\activate` again.
 
 Open `.env` and set your own API key (any long random text). You can generate one with:
 ```powershell

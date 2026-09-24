@@ -9,8 +9,10 @@ Each folder has its own problem statement (`00_problem_statement.pdf`) and a `RE
 a `GUIDE.md` with step-by-step instructions and the theory to learn for every phase.
 
 ## Quick start (Day 1)
+Needs Python 3.10+ and Git.
 ```powershell
-cd day1
+git clone https://github.com/Ghanshyam-02/capstone-2.git
+cd capstone-2\day1
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements-dev.txt
