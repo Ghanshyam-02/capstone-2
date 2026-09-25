@@ -42,7 +42,7 @@ deployable, observable and recoverable, not just that it runs."*
 **What:** a **gate** is an automatic check in the pipeline. If it fails, the pipeline stops and nothing is deployed.
 Day 2 wants all test types in order: unit → data model → pipeline → API → business rules → security.
 
-**Our project:** `day1/tests` already covers each group (46 tests). In CI we run `pytest --junitxml=report.xml`.
+**Our project:** `day1/tests` already covers each group (22 tests). In CI we run `pytest --junitxml=report.xml`.
 The XML is the evidence (`01_test_results`).
 
 **Mandatory negative test:** "the system does **not** calculate an incorrect settlement rate when one transaction

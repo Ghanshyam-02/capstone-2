@@ -46,7 +46,7 @@ DASHBOARD  frontend/index.html (KPI cards, 2 charts, merchant table)
 ```
 - **Database: DuckDB.** A real SQL database stored in one file (`data/warehouse/settlement.duckdb`).
   No server, account or password. Python runs the steps, and all the data logic is plain SQL in `sql/`.
-- **Everything is automated and tested:** one command builds the database, and 46 tests check it.
+- **Everything is automated and tested:** one command builds the database, and 22 tests check it.
 
 ## 4. How each hidden problem is solved
 | Problem (brief) | Where in the data | Solution |
@@ -90,7 +90,7 @@ were rejected. All of them are listed in `audit.dq_log`.
 | `common/` | settings, database connection, KPI formulas, query tool | – |
 | `api/` | FastAPI endpoints, response models, API key, SQL queries | Task 3 |
 | `frontend/index.html` | dashboard | Task 3 |
-| `tests/` | 46 tests: unit, business rules, pipeline, data model, API, security | Task 4 |
+| `tests/` | 22 tests: unit, business rules, pipeline, data model, API, security | Task 4 |
 | `docs/05_security.md`, `docs/06_deployment.md`, `Dockerfile`, `.gitlab-ci.yml` | security and deployment | Task 4 |
 
 ## 7. Run it

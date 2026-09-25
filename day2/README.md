@@ -33,10 +33,10 @@ release**: detect it, decide, roll back, prove recovery with evidence, and prese
 ## 3. Production requirements and how we will meet them
 | Requirement | Target | How (Day 1 already gives us ✅) |
 |---|---|---|
-| Test suite | 100 % passing | ✅ 46 tests in `day1/tests` (all categories Day 2 lists), run in CI |
+| Test suite | 100 % passing | ✅ 22 tests in `day1/tests` (all categories Day 2 lists), run in CI |
 | Critical security findings | 0 | Bandit + Gitleaks + pip-audit + Trivy in CI, fix anything critical |
 | API health | HTTP 200 | ✅ `/health` checks the database and returns the version |
-| API response | < 500 ms | ✅ tested in `test_api.py`, measured again in the smoke test |
+| API response | < 500 ms | measured in the smoke test (the API currently answers in < 100 ms) |
 | Deployment | GitLab CI | `.gitlab-ci.yml` at the repo root |
 | Secondary build path | Jenkins | `day2/Jenkinsfile`, Jenkins running in Docker |
 | Deployment strategy | Blue-Green | Docker Compose: `blue` + `green` containers behind **Nginx** |

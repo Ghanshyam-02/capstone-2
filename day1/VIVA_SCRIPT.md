@@ -141,18 +141,18 @@ Read it aloud a few times. Keep the numbers, and say the rest in your own words.
 
 *(Run `pytest -v`.)*
 
-> "There are 46 automated tests in six groups:
-> - **unit tests** for the KPI formulas
+> "There are 22 automated tests, exactly what the brief asks for, in six groups:
+> - **unit tests** for the KPI formulas: rate, gap, SLA and exception logic
 > - **business-rule tests**, one per case in the brief: they feed a few hand-written rows through the real
 >   pipeline and check the result
-> - **pipeline tests** for re-runs and incremental loads
+> - a **pipeline test** for incremental loads
 > - **data-model tests** on the full dataset: no duplicate keys (grain), no orphans (referential integrity),
 >   and reconciliation, meaning successful equals settled plus unsettled
-> - **API tests** for every status code, values that match the database, and responses under 500 ms
-> - **security tests**
+> - **API tests** for 200, 400, 404 and 422, with the rate between 0 and 100 and equal to the database
+> - **security tests** for a missing API key and SQL injection
 >
 > My favourite is the **negative test**: 8,000 plus 2,000 on a 10,000 transaction must give 100%, not 200%.
-> They all run in about 11 seconds, each on its own temporary database."
+> They all run in about 12 seconds, each on its own temporary database."
 
 ## Part 10 – Security and deployment (1 min)
 

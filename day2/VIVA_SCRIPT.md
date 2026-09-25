@@ -36,7 +36,7 @@ brief requires, then the 360° peer review and the viva questions with answers.
 ## Slide 3 – Production readiness (1.5 min)
 
 > "Here's the proof, one tick per production requirement:
-> - **Tests ✓:** [46] tests across unit, data model, pipeline, API, business rules and security, 100 % passing,
+> - **Tests ✓:** [22] tests across unit, data model, pipeline, API, business rules and security, 100 % passing,
 >   including the mandatory negative test for multiple settlements. *(evidence 01)*
 > - **Security ✓:** Bandit SAST, Gitleaks secret scan, pip-audit SCA and Trivy container scan.
 >   [0] critical findings. [List any high/medium findings and the remediation.] *(evidence 02)*

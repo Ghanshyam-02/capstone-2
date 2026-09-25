@@ -287,18 +287,20 @@ You see 6 KPI cards, the daily chart (look for the dip on 15 Sep), the top-10 ga
   - *grain*: no duplicate keys
   - *referential integrity*: no orphans
   - *reconciliation*: successful = settled + unsettled, and the KPI table matches the facts
-- **Contract test**: checks the API keeps its promise (status codes, fields, 0 ≤ rate ≤ 100, response time).
+- **Contract test**: checks the API keeps its promise (status codes, 0 ≤ rate ≤ 100, values equal the database).
 - **Negative test**: proves something wrong does **not** happen, e.g. multiple settlements must not push the rate above 100 %.
 - **Fixture** (pytest): prepared test setup that tests reuse, e.g. a database built in a temporary folder.
 
-| File | Covers |
-|---|---|
-| `tests/test_unit_kpi.py` | settlement rate, gap, SLA, merchant exception logic |
-| `tests/test_business_rules.py` | success, failed, duplicate event, missing merchant, invalid currency, unmatched and negative settlement, late event, out-of-order events, settlement calculation, **multiple settlements (negative test)**, SLA |
-| `tests/test_pipeline.py` | re-run changes nothing, a new batch is incremental, PENDING → SETTLED |
-| `tests/test_data_model.py` | grain, duplicates, referential integrity, reconciliation, invalid data handling, SCD2 |
-| `tests/test_api.py` | 200 / 400 / 404 / 422, values match the database, < 500 ms |
-| `tests/test_security.py` | 401, SQL injection, read-only database, no hard-coded secrets, no customer ids |
+22 tests, only what the two briefs ask for:
+
+| File | Tests | Covers |
+|---|---|---|
+| `tests/test_unit_kpi.py` | 2 | settlement rate and gap, SLA and merchant exception logic |
+| `tests/test_business_rules.py` | 10 | the brief's 8 cases (successful, failed, duplicate event, missing merchant, unmatched settlement, negative settlement, late event, settlement calculation), the **multiple-settlements negative test**, and the SLA |
+| `tests/test_pipeline.py` | 1 | incremental load: old files not reloaded, PENDING → SETTLED updated |
+| `tests/test_data_model.py` | 3 | grain, referential integrity, reconciliation |
+| `tests/test_api.py` | 4 | 200 (rate 0–100, equals the database), 400, 404, 422 |
+| `tests/test_security.py` | 2 | 401 without a key, SQL injection blocked |
 
 ### Steps
 ```powershell
@@ -307,7 +309,7 @@ pytest -v
 The tests build their own temporary databases, so your `data/warehouse` database is never touched.
 
 ### Check
-`46 passed`. Try breaking something (e.g. change `1800` to `18` in `sql/03_gold.sql`) and watch the tests fail. That is the safety net working.
+`22 passed`. Try breaking something (e.g. change `1800` to `18` in `sql/03_gold.sql`) and watch the tests fail. That is the safety net working.
 
 ---
 
@@ -368,7 +370,7 @@ You can explain the path: push → tests → scans → image → DEV → TEST �
 | Expose the analytics through an API | `api/` |
 | Consume the API through a web dashboard | `frontend/index.html` |
 | Process new data incrementally | `audit.loaded_files` + `audit.watermark` + changed-dates rebuild (Phase 6) |
-| Automatically test the implementation | `tests/` (46 tests) + test stage in `.gitlab-ci.yml` |
+| Automatically test the implementation | `tests/` (22 tests) + test stage in `.gitlab-ci.yml` |
 
 ### Data and hidden problems (sections 2–3)
 | Item | Where |
@@ -401,7 +403,7 @@ You can explain the path: push → tests → scans → image → DEV → TEST �
 | Unit tests (8 cases from the brief) | `tests/test_business_rules.py` |
 | Data-model tests: grain, referential integrity, reconciliation | `tests/test_data_model.py` |
 | API contract tests: 200, 400, 404, 422, 0 ≤ rate ≤ 100 | `tests/test_api.py` |
-| Security: injection, access, secrets, PII, logging, authorization | `docs/05_security.md`, `tests/test_security.py` |
+| Security: injection, access, secrets, PII, logging, authorization | `docs/05_security.md`, `tests/test_security.py` (401, injection) |
 | Deployment design: GitLab CI, DEV → TEST → PROD, config, secrets, health, smoke test, rollback | `.gitlab-ci.yml`, `docs/06_deployment.md`, `Dockerfile` |
 
 ---

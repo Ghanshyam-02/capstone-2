@@ -11,8 +11,7 @@
 | **XSS in dashboard** | A merchant name with `<script>` runs in the browser | Table cells use `textContent`, never `innerHTML`. | `frontend/index.html` |
 | **Container** | Root process, secrets baked into the image | Runs as the non-root `appuser`. The API key is passed at runtime (`-e API_KEY=...`). | `Dockerfile` |
 
-Proven by `tests/test_security.py`: 401 without a key, 422 for an injection attempt, the read-only database
-refuses writes, no hard-coded secrets in the code, no customer ids in API responses.
+Proven by `tests/test_security.py`: 401 without a key, 422 for an injection attempt.
 
 Production improvements (Day 2 / future): SAST (Bandit), secret scan (Gitleaks), dependency scan (pip-audit),
 container scan (Trivy), SSO/OAuth2 at an API gateway, rate limiting, a secret manager.

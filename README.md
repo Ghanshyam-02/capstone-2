@@ -24,7 +24,7 @@ pip install -r requirements-dev.txt
 copy .env.example .env
 python -m pipeline.run_pipeline          # build the database from the CSV files
 python -m common.query sql/06_explore.sql
-pytest                                   # 46 tests
+pytest                                   # 22 tests
 uvicorn api.main:app --reload            # dashboard: http://localhost:8000
 ```
 

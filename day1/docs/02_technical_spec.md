@@ -53,7 +53,7 @@ Errors: 400 invalid date, 401 missing API key, 404 unknown merchant, 422 invalid
 
 ## Validation
 Rules in `sql/04_bronze_to_silver.sql` (see the business spec table). Tests in `tests/`: unit, business rules,
-pipeline, data model, API, security (46 tests, all run locally in ~12 s).
+pipeline, data model, API, security (22 tests, all run locally in ~12 s).
 
 ## Monitoring
 - `audit.pipeline_runs` – start/end/status/counts/error per run.
