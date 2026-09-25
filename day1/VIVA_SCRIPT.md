@@ -212,7 +212,7 @@ Read it aloud a few times. Keep the numbers, and say the rest in your own words.
 ### Testing
 22. **Unit vs integration tests here?** KPI tests are pure unit tests. Business-rule tests run the real pipeline on tiny data, which makes them small integration tests. Data-model tests check the whole dataset.
 23. **What is a negative test?** It proves a wrong thing does *not* happen, e.g. the rate never goes above 100% with multiple settlements.
-24. **How do you know the API numbers are right?** `test_200_valid_request_returns_the_contract` compares the API's answer with a direct SQL query on the database.
+24. **How do you know the API numbers are right?** `test_200_valid_request` compares the API's answer with a direct SQL query on the database.
 
 ### Security
 25. **How do you prevent SQL injection?** Bind parameters (`?`) plus input validation (regex, returning 422). User input never becomes SQL text.
