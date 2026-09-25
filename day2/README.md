@@ -5,8 +5,11 @@
 📚 Theory for every Day 2 topic: **[LEARN.md](LEARN.md)**
 🎤 Leadership presentation / viva script with Q&A: **[VIVA_SCRIPT.md](VIVA_SCRIPT.md)**
 
-> **Status:** plan + learning path. Implementation comes next, step by step, once you are comfortable
-> with the tools below.
+👉 **Step-by-step (Windows VM with Docker): [GUIDE.md](GUIDE.md)**
+
+> **Status:** implemented and tested on the VM: test gate, security gate, Jenkins pipeline, blue-green cutover,
+> incident injection, detection and rollback. The GitLab pipeline (`../.gitlab-ci.yml`) is ready to run once the
+> repo is imported into GitLab.
 
 ---
 
@@ -25,7 +28,7 @@ release**: detect it, decide, roll back, prove recovery with evidence, and prese
 | Morning | **Task 4 – Jenkins** | A `Jenkinsfile`: checkout → install → test → security → build image → publish artifact. Explain why enterprises keep Jenkins next to GitLab CI. |
 | Morning | **Task 5 – Blue-green** | BLUE = V1 gets 100 % traffic, GREEN = V2 is deployed. Pre-cutover checks + smoke test (`/health`, `/settlement-summary`, `/merchant-exceptions`: 200, valid JSON, correct KPIs, fast), then switch 100 % to GREEN. |
 | Morning | **Evidence package** | `01_test_results … 09_kpi_reconciliation`. *"It worked" is not enough – prove it.* |
-| Midday | **Incident** | After cutover the settlement rate shows **103.7 %** (was ~95 %) while the API still returns 200. Four hidden defects in V2: **A** grain join (settlements joined before aggregation), **B** filter on `ingestion_ts` instead of `transaction_ts`, **C** V2 points to `settlement_db_v2`, **D** API divides by transaction count instead of amount. |
+| Midday | **Incident** | After cutover the settlement rate shows **103.7 %** (was ~95 %) while the API still returns 200. Four hidden defects in V2: **A** grain join (settlements joined before aggregation), **B** filter on `ingestion_ts` instead of `transaction_ts`, **C** V2 points to `settlement_db_v2`, **D** API divides by transaction count instead of amount. *(Our faulty V2 injects A, C and D, which gives 103.98 %.)* |
 | Midday | **Detect → Decide → Recover** | Compare V1 vs V2, business impact, root cause, decision (rollback vs fix forward), rollback GREEN → BLUE, smoke tests, KPI validation, timeline, incident report, 5 Whys, ≥ 3 preventive controls |
 | Afternoon | **Task 6 – Presentation** | 8 slides: problem, architecture, production readiness, incident, decision, recovery, prevention, business outcome |
 | Afternoon | **Task 7 – 360° peer review** | Score another team 1–5 on 9 areas and answer 5 questions |
@@ -43,7 +46,7 @@ release**: detect it, decide, roll back, prove recovery with evidence, and prese
 | Rollback | Required | switch Nginx back to blue (one command) |
 | Production secrets | none hard-coded | ✅ `.env` / CI variables, plus secret scan |
 | Production smoke test | Mandatory | `day2/scripts/smoke_test.py` (status, JSON, KPI values, time) |
-| Data reconciliation | Mandatory | `day2/scripts/kpi_reconciliation.py`: API KPIs vs direct SQL |
+| Data reconciliation | Mandatory | `python -m common.reconcile` (facts vs KPI table) + smoke test `--expected-rate` (API vs reconciled value) |
 | Evidence | Mandatory | `day2/evidence/01_… 09_…` + incident folder |
 
 ## 4. What to learn (in this order)
@@ -73,35 +76,35 @@ GitLab / Jenkins just run the same commands.
 | Python tools | bandit, pip-audit | `pip install bandit pip-audit` |
 | Gitleaks, Trivy | secret and container scans | run as Docker images, nothing to install |
 
-## 5. Planned structure
+## 5. What is in this folder
 ```
 day2/
-├── README.md                  ← this plan
-├── GUIDE.md                   ← step-by-step with theory (like Day 1)
-├── Jenkinsfile                ← Task 4
+├── README.md, GUIDE.md, LEARN.md, VIVA_SCRIPT.md
+├── Jenkinsfile                   ← Task 4: secondary build path
+├── jenkins/Dockerfile            ← Jenkins + Python + Docker CLI (runs as a container)
 ├── deploy/
-│   ├── docker-compose.yml     ← blue (V1) + green (V2) + nginx
-│   ├── nginx.conf             ← which colour gets the traffic
-│   └── switch.ps1 / .sh       ← cutover and rollback in one command
-├── v2/                        ← Version 2 WITH the 4 injected defects (A, B, C, D)
+│   ├── docker-compose.yml        ← blue (V1) + green (V2) + nginx load balancer
+│   ├── nginx/default.conf        ← which colour is live
+│   ├── switch.ps1                ← cutover / rollback in one command
+│   └── .env.example              ← API key for the containers
 ├── scripts/
-│   ├── smoke_test.py          ← /health, /settlement-summary, /merchant-exceptions checks
-│   ├── kpi_reconciliation.py  ← API KPIs vs direct SQL on the database
-│   └── security_gate.ps1      ← bandit, gitleaks, pip-audit, trivy
-├── evidence/                  ← 01_test_results … 09_kpi_reconciliation
-├── incident/                  ← timeline, incident report, 5 Whys, preventive controls
-└── presentation/              ← 8-slide outline + 360° peer-review template
-.gitlab-ci.yml (repo root)     ← Task 3 production pipeline (GitLab reads it from the root)
+│   ├── smoke_test.py             ← /health, /settlement-summary, /merchant-exceptions: 200, JSON, KPI values, time
+│   └── security_gate.ps1         ← Bandit, Gitleaks, pip-audit, Trivy
+├── incident/
+│   ├── v2-defects/               ← the faulty V2 release (defects A, C, D injected)
+│   └── INCIDENT_REPORT.md        ← timeline, report, decision, 5 Whys, controls
+└── evidence/                     ← 01_test_results … 09_kpi_reconciliation (you generate them)
+../.gitlab-ci.yml                 ← Task 3: primary production pipeline (GitLab reads it from the root)
+../day1/common/reconcile.py       ← KPI reconciliation (facts vs KPI table), used as a gate
 ```
 
-## 6. Implementation plan (we will do these together)
-1. **Test gate:** run `day1` tests and save the report (JUnit XML) as evidence. Add a CI regression check that the settlement rate is ≤ 100 %.
-2. **Security gate:** run Bandit, Gitleaks, pip-audit and Trivy. Record the findings and whether each blocks production.
-3. **GitLab CI:** write the root `.gitlab-ci.yml` with all 8 stages and the required keywords, then run it on gitlab.com.
-4. **Jenkins:** start Jenkins in Docker, add the `Jenkinsfile`, and run it to produce the same image as an artifact.
-5. **Blue-green:** build `settlement-api:v1` and `:v2`, start compose (100 % → blue), run pre-cutover checks + smoke test on green, then switch.
-6. **Incident:** V2 shows ~103.7 %. Detect it with the KPI smoke test (not `/health`), compare against V1, find defects A–D, **roll back** to blue, re-run the smoke test and reconciliation, and write the timeline, incident report and 5 Whys.
-7. **Prevention:** add the controls to the pipeline: the multiple-settlement regression test, a reconciliation gate (settled ≤ successful), a KPI-based smoke test, and SQL review for Gold changes.
-8. **Presentation + peer review:** fill in the slide outline with your real evidence.
-
-Start with topics 1–4 (Docker, Compose, Nginx, blue-green). They are needed first and take about half a day.
+## 6. Results on the VM (what you should see)
+| Check | V1 / V2 (good) | Faulty V2 (incident) |
+|---|---|---|
+| `/health` | 200 · 1.0.0 / 2.0.0 · settlement.duckdb | **200** · 2.0.1 · **settlement_db_v2.duckdb** |
+| Settlement rate | **93.72 %** | **103.98 %** |
+| Smoke test | PASS | **FAIL** (rate outside 0–100, ≠ baseline) |
+| Reconciliation | PASS | **FAIL** (21 merchants settled > successful) |
+| Rollback time | – | ~1 second (`switch.ps1 blue`) |
+| Security gate | SAST, secrets, SCA, container: PASS, 0 critical | – |
+| Jenkins | SUCCESS (6 stages) | – |

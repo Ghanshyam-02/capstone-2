@@ -1,0 +1,138 @@
+# Day 2 - GitLab CI production pipeline (PRIMARY path, Task 3)
+#   validate -> test -> security -> build -> package -> deploy_dev -> smoke_test -> deploy_prod
+#
+# One-time setup in GitLab: Settings > CI/CD > Variables
+#   API_KEY   (masked + PROTECTED)  - protected variables are only given to protected branches (main)
+
+stages: [validate, test, security, build, package, deploy_dev, smoke_test, deploy_prod]
+
+variables:
+  IMAGE: $CI_REGISTRY_IMAGE/settlement-api:$CI_COMMIT_SHORT_SHA     # one image per commit (rollback!)
+  PIP_CACHE_DIR: $CI_PROJECT_DIR/.cache/pip
+
+# Run on merge requests and on the main branch
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+default:
+  image: python:3.12-slim
+  cache:                                   # CACHE: reuse downloaded pip packages between pipelines
+    key:
+      files: [day1/requirements-dev.txt]
+    paths: [.cache/pip]
+
+.main_only:                                # RULES: deployment jobs only on main
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# ------------------------------------------------------------------ validate
+validate:
+  stage: validate
+  script:
+    - python -m compileall -q day1                 # every Python file must compile
+
+# ------------------------------------------------------------------ test  (Task 1: test gate)
+tests:
+  stage: test
+  needs: [validate]                                # NEEDS: start as soon as validate is done
+  script:
+    - pip install -r day1/requirements-dev.txt
+    - cd day1 && pytest --junitxml=test-report.xml
+  artifacts:                                       # ARTIFACTS: kept as evidence (01_test_results)
+    when: always
+    paths: [day1/test-report.xml]
+    reports:
+      junit: day1/test-report.xml
+
+# ------------------------------------------------------------------ security  (Task 2: security gate)
+sast:
+  stage: security
+  needs: [validate]
+  script:
+    - pip install bandit
+    - bandit -r day1 -x day1/tests -f txt -o bandit.txt || true     # full report
+    - bandit -r day1 -x day1/tests -lll                             # fail on HIGH severity
+  artifacts: { when: always, paths: [bandit.txt] }
+
+secret_scan:
+  stage: security
+  needs: [validate]
+  image: { name: zricethezav/gitleaks:latest, entrypoint: [""] }
+  script:
+    - gitleaks detect --source . --redact --verbose --report-path gitleaks.json
+  artifacts: { when: always, paths: [gitleaks.json] }
+
+sca:
+  stage: security
+  needs: [validate]
+  script:
+    - pip install pip-audit
+    - pip-audit -r day1/requirements.txt | tee pip-audit.txt
+  artifacts: { when: always, paths: [pip-audit.txt] }
+
+# ------------------------------------------------------------------ build
+docker_build:
+  stage: build
+  needs: [tests, sast, secret_scan, sca]           # only build after ALL gates passed
+  image: docker:27
+  services: [docker:27-dind]
+  script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+    - docker build --build-arg APP_VERSION=$CI_COMMIT_SHORT_SHA -t "$IMAGE" day1
+    - docker push "$IMAGE"
+
+# ------------------------------------------------------------------ package  (container scan)
+container_scan:
+  stage: package
+  needs: [docker_build]
+  image: { name: aquasec/trivy:latest, entrypoint: [""] }
+  variables:
+    TRIVY_USERNAME: $CI_REGISTRY_USER
+    TRIVY_PASSWORD: $CI_REGISTRY_PASSWORD
+  script:
+    - trivy image --severity HIGH,CRITICAL --no-progress --output trivy.txt "$IMAGE"
+    - trivy image --severity CRITICAL --exit-code 1 --no-progress "$IMAGE"    # 0 critical allowed
+  artifacts: { when: always, paths: [trivy.txt] }
+
+# ------------------------------------------------------------------ deploy_dev
+# The image runs as a SERVICE container next to the job = our DEV environment.
+deploy_dev:
+  stage: deploy_dev
+  needs: [container_scan]
+  extends: .main_only
+  environment: { name: dev }                       # ENVIRONMENT: shown in Operate > Environments
+  services: [{ name: $IMAGE, alias: app }]
+  script:
+    - for i in $(seq 1 30); do python -c "import urllib.request; urllib.request.urlopen('http://app:8000/health')" && break; sleep 2; done
+    - python -c "import urllib.request; print(urllib.request.urlopen('http://app:8000/health').read().decode())" | tee deployment_version.json
+  artifacts: { paths: [deployment_version.json] }
+
+# ------------------------------------------------------------------ smoke_test
+smoke_test:
+  stage: smoke_test
+  needs: [deploy_dev]
+  extends: .main_only
+  services: [{ name: $IMAGE, alias: app }]
+  script:
+    - for i in $(seq 1 30); do python -c "import urllib.request; urllib.request.urlopen('http://app:8000/health')" && break; sleep 2; done
+    - python day2/scripts/smoke_test.py --url http://app:8000 --key "$API_KEY" --expected-rate 93.72 | tee smoke_test.txt
+  artifacts: { when: always, paths: [smoke_test.txt] }
+
+# ------------------------------------------------------------------ deploy_prod  (controlled approval)
+deploy_prod:
+  stage: deploy_prod
+  needs: [smoke_test]
+  image: docker:27
+  services: [docker:27-dind]
+  environment: { name: production }
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: manual                                 # MANUAL APPROVAL: someone must click "run"
+  script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+    - docker pull "$IMAGE"
+    - docker tag "$IMAGE" "$CI_REGISTRY_IMAGE/settlement-api:production"
+    - docker push "$CI_REGISTRY_IMAGE/settlement-api:production"
+    - echo "Approved release $IMAGE -> production. Blue-green cutover on the production host - day2/deploy/switch.ps1"

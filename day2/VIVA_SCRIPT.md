@@ -54,7 +54,7 @@ brief requires, then the 360° peer review and the viva questions with answers.
 ## Slide 4 – Production incident (1.5 min)
 
 > "At [10:08] we cut over to green, Version 2. At [10:15] the dashboard showed a settlement rate of
-> **[103.7 %]**. Before, it was **93.72 %**. Operations also reported merchants whose settled amount was higher
+> **103.98 %**. Before, it was **93.72 %**. Operations also reported 21 merchants whose settled amount was higher
 > than their successful amount. That's impossible under our business rules.
 >
 > **How it was detected:** not by the health check. `/health` still returned HTTP 200. It was detected by the
@@ -68,11 +68,13 @@ brief requires, then the 360° peer review and the viva questions with answers.
 > **Evidence:** API responses from V1 and V2 side by side, application logs, the deployed version from
 > `/health`, the KPI SQL output, and the pipeline artifacts. *(incident folder)*
 >
-> **Diagnosis:** we compared V1 with V2 and found [the injected defects]:
-> - **A:** the Gold query joins transactions to settlements before aggregating, so amounts are inflated.
-> - **B:** a date filter on `ingestion_ts` instead of `transaction_ts`, so the daily numbers shift.
-> - **C:** V2 is configured to `settlement_db_v2` instead of the approved database.
-> - **D:** the API divides by transaction count instead of successful amount."
+> **Diagnosis:** we compared V1 (blue, still running) with V2 (green). The transaction amount was identical,
+> but the settled amount was 42.99 M instead of 38.75 M. The faulty release 2.0.1 contained:
+> - **A (grain):** the Gold query joins transactions to settlements before aggregating, so a transaction
+>   with two settlement rows is counted twice.
+> - **C (configuration):** `/health` showed it reading `settlement_db_v2` instead of the approved database.
+> - **D (API):** the 0–100 guard was removed, so the impossible rate reached the dashboard with HTTP 200.
+> - We also checked **B** (date filter on `ingestion_ts`) by comparing the daily trend of V1 and V2: not present."
 
 ## Slide 5 – Decision (1 min)
 
@@ -94,7 +96,7 @@ brief requires, then the 360° peer review and the viva questions with answers.
 > |---|---|
 > | [10:00] | V2 deployed to green |
 > | [10:08] | Blue-green cutover |
-> | [10:15] | KPI anomaly detected (rate [103.7 %]) |
+> | [10:15] | KPI anomaly detected (rate 103.98 %) |
 > | [10:22] | Investigation started |
 > | [10:35] | Root cause identified |
 > | [10:40] | Rollback initiated: traffic removed from green |
@@ -102,7 +104,7 @@ brief requires, then the 360° peer review and the viva questions with answers.
 > | [10:50] | Smoke tests passed |
 > | [10:55] | Business KPIs reconciled: rate back to **93.72 %** |
 >
-> Before rollback: [103.7 %]. After rollback: 93.72 %, which matches the SQL reconciliation exactly.
+> Before rollback: 103.98 %. After rollback: 93.72 %, which matches the SQL reconciliation exactly.
 > Production was restored in [N] minutes from detection."
 
 ## Slide 7 – Prevention (1 min)

@@ -204,7 +204,7 @@ sees it, and roll back in seconds by switching traffic back."*
 **HTTP 200, valid JSON, correct KPI values, acceptable response time**.
 
 **The key lesson:** `/health` only proves the app is **alive**, not that it is **right**. In the incident the API
-still returns 200 while the settlement rate is 103.7 %. So the smoke test must check **business values**, e.g.
+still returns 200 while the settlement rate is 103.7 % (103.98 % in our run). So the smoke test must check **business values**, e.g.
 `0 ≤ settlement_rate ≤ 100`, and that it equals the baseline.
 
 **KPI reconciliation:** calculate the KPIs **independently** with SQL straight on the database, and compare them

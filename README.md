@@ -3,14 +3,15 @@
 | Day | Folder | What | Status |
 |---|---|---|---|
 | **Day 1** | [`day1/`](day1/) | Build the platform: CSV → Bronze → Silver → Gold → FastAPI → dashboard, with tests, security and a deployment design | ✅ working |
-| **Day 2** | [`day2/`](day2/) | Make it production-ready: CI/CD (GitLab + Jenkins), security gates, blue-green deployment, incident recovery, presentation | 📋 plan + learning path |
+| **Day 2** | [`day2/`](day2/) | Make it production-ready: CI/CD (GitLab + Jenkins), security gates, blue-green deployment, incident recovery, presentation | ✅ implemented (follow `day2/GUIDE.md` in the Docker VM) |
 
 Each folder has its own problem statement (`00_problem_statement.pdf`) and:
 
 | File | Day 1 | Day 2 |
 |---|---|---|
-| `README.md` | what we built and how | what is asked, the plan, what to learn |
-| `GUIDE.md` / `LEARN.md` | step-by-step + theory for every phase | theory for every Day 2 topic |
+| `README.md` | what we built and how | what is asked, what is in the folder, results |
+| `GUIDE.md` | step-by-step + theory for every phase | step-by-step in the Windows VM with Docker |
+| `LEARN.md` | – | theory for every Day 2 topic |
 | `VIVA_SCRIPT.md` | presentation script + 30 viva Q&A | 8-slide leadership script + peer review + 20 viva Q&A |
 
 ## Quick start (Day 1)
