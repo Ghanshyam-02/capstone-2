@@ -1,9 +1,11 @@
 # Image for the API + dashboard.
-#   docker build -t settlement-api:1.0 .
-#   docker run -p 8000:8000 -e API_KEY=<your key> settlement-api:1.0
+#   docker build -t settlement-api:v1 .
+#   docker build -t settlement-api:v2 --build-arg APP_VERSION=2.0.0 .
+#   docker run -p 8000:8000 -e API_KEY=<your key> settlement-api:v1
 FROM python:3.12-slim
 
-ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+ARG APP_VERSION=1.0.0
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 APP_VERSION=$APP_VERSION
 WORKDIR /app
 
 # 1. dependencies first -> Docker caches this layer until requirements.txt changes

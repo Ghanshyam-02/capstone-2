@@ -1,0 +1,26 @@
+# Blue-green production on one machine:
+#   blue  = Version 1  (http://localhost:8001, direct - for checks only)
+#   green = Version 2  (http://localhost:8002, direct - for pre-cutover checks)
+#   lb    = Nginx load balancer = what users call (http://localhost:8090)
+# Which colour gets the traffic is set in nginx/default.conf (changed by switch.ps1).
+name: settlement
+
+services:
+  blue:
+    image: settlement-api:v1
+    env_file: .env
+    ports: ["8001:8000"]
+    restart: unless-stopped
+
+  green:
+    image: settlement-api:${GREEN_IMAGE:-v2}
+    env_file: .env
+    ports: ["8002:8000"]
+    restart: unless-stopped
+
+  lb:
+    image: nginx:alpine
+    ports: ["8090:80"]
+    volumes: ["./nginx:/etc/nginx/conf.d"]
+    depends_on: [blue]
+    restart: unless-stopped

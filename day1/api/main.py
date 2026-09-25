@@ -56,7 +56,8 @@ def health(repo: Repo):
     """For Docker / deployment health checks. No key needed, returns no business data."""
     try:
         repo.ping()
-        return {"status": "ok", "database": "ok", "version": config.app_version()}
+        return {"status": "ok", "database": "ok", "database_file": config.db_path().name,
+                "version": config.app_version()}
     except Exception:
         raise HTTPException(503, "database unreachable")
 

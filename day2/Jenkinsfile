@@ -1,0 +1,41 @@
+// Jenkins = SECONDARY build path (Task 4). GitLab CI is the primary path.
+// It independently builds the SAME artifact: the settlement-api Docker image.
+// Jenkins job: "Pipeline script from SCM" -> this repo -> Script Path: day2/Jenkinsfile
+pipeline {
+  agent any
+  environment {
+    IMAGE = "settlement-api:jenkins-${BUILD_NUMBER}"
+  }
+  stages {
+    stage('Checkout') {
+      steps { checkout scm }
+    }
+    stage('Install Dependencies') {
+      steps {
+        sh 'python3 -m venv .venv && .venv/bin/pip install -q -r day1/requirements-dev.txt bandit pip-audit'
+      }
+    }
+    stage('Run Tests') {
+      steps { sh 'cd day1 && ../.venv/bin/pytest --junitxml=test-report.xml' }
+    }
+    stage('Security Checks') {
+      steps {
+        sh '.venv/bin/bandit -r day1 -x day1/tests -f txt -o bandit.txt || true'   // full report
+        sh '.venv/bin/bandit -r day1 -x day1/tests -lll -q'                        // block on HIGH
+        sh '.venv/bin/pip-audit -r day1/requirements.txt | tee pip-audit.txt'      // block on known CVEs
+      }
+    }
+    stage('Build Docker Image') {
+      steps { sh 'docker build -t $IMAGE day1' }
+    }
+    stage('Publish Artifact') {
+      steps {
+        sh 'docker image inspect $IMAGE --format "{{.Id}}" > image-id.txt && echo "$IMAGE" >> image-id.txt'
+        archiveArtifacts artifacts: 'day1/test-report.xml, bandit.txt, pip-audit.txt, image-id.txt'
+      }
+    }
+  }
+  post {
+    always { junit 'day1/test-report.xml' }
+  }
+}
