@@ -122,7 +122,7 @@ smoke_test:
       alias: app
       variables: { API_KEY: $API_KEY }
   script:
-    - '[ -n "$API_KEY" ] || { echo "API_KEY is not set: add it in Settings > CI/CD > Variables (protected) and make sure main is a protected branch"; exit 1; }'
+    - 'if [ -n "$API_KEY" ]; then echo "API_KEY received by the job: yes"; else echo "API_KEY is NOT set: add it in Settings > CI/CD > Variables and make sure main is a protected branch"; exit 1; fi'
     - for i in $(seq 1 30); do python -c "import urllib.request; urllib.request.urlopen('http://app:8000/health')" && break; sleep 2; done
     - python day2/scripts/smoke_test.py --url http://app:8000 --key "$API_KEY" --expected-rate 93.72 | tee smoke_test.txt
   artifacts: { when: always, paths: [smoke_test.txt] }
