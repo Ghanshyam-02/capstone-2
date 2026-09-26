@@ -1,0 +1,10 @@
+﻿
+
+status        : ok
+database      : ok
+database_file : settlement.duckdb
+version       : 2.0.0
+
+
+
+

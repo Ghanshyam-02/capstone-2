@@ -1,0 +1,10 @@
+﻿python : WARNING:venv:Actual environment location may have moved due to redirects, links or junctions.
+At C:\Users\Administrator\Desktop\capstone-2\day2\scripts\security_gate.ps1:21 char:1
++ python -m pip_audit -r day1\requirements.txt 2>&1 | Tee-Object "$out\ ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (WARNING:venv:Ac...s or junctions.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  Requested location: "C:\Users\ADMINI~1\AppData\Local\Temp\tmpyhkz6om3\Scripts\python.exe"
+  Actual location:    "C:\Users\Administrator\AppData\Local\Temp\tmpyhkz6om3\Scripts\python.exe"
+No known vulnerabilities found

@@ -1,0 +1,8 @@
+﻿green-1  | INFO:     172.19.0.3:42370 - "GET /health HTTP/1.1" 200 OK
+green-1  | INFO:     172.19.0.3:42380 - "GET /api/v1/settlement-summary?start_date=2026-09-01&end_date=2026-09-30 HTTP/1.1" 200 OK
+green-1  | INFO:     127.0.0.1:51474 - "GET /health HTTP/1.1" 200 OK
+green-1  | INFO:     172.19.0.3:42382 - "GET /api/v1/merchant-exceptions HTTP/1.1" 200 OK
+green-1  | INFO:     172.19.0.1:33490 - "GET /api/v1/settlement-summary?start_date=2026-09-01&end_date=2026-09-30 HTTP/1.1" 200 OK
+green-1  | INFO:     172.19.0.1:33490 - "GET /health HTTP/1.1" 200 OK
+green-1  | INFO:     172.19.0.1:33490 - "GET /api/v1/merchant-exceptions HTTP/1.1" 200 OK
+green-1  | INFO:     172.19.0.1:33490 - "GET /api/v1/daily-trend?start_date=2026-09-01&end_date=2026-09-30 HTTP/1.1" 200 OK

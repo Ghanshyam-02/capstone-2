@@ -1,0 +1,11 @@
+﻿Smoke test http://localhost:8090   version=2.0.1   live colour=green   2026-09-26 22:06:30
+  PASS  GET /health -> 200                         200, 1587 ms
+  PASS  GET /settlement-summary -> 200             200
+  PASS    valid JSON with settlement_rate          103.98
+  FAIL    response time < 500 ms                   734 ms
+  FAIL    settlement_rate between 0 and 100        103.98 %
+  FAIL    settlement_rate = reconciled baseline    103.98 % vs expected 93.72 %
+  PASS  GET /merchant-exceptions -> 200            200
+  PASS    valid JSON list of merchants             8 merchants
+  FAIL    every merchant rate between 0 and 100    
+RESULT: FAIL

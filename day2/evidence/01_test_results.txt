@@ -1,0 +1,28 @@
+﻿============================= test session starts =============================
+collecting ... collected 22 items
+
+tests/test_unit_kpi.py::test_settlement_rate_and_gap PASSED              [  4%]
+tests/test_unit_kpi.py::test_sla_rate_and_merchant_exception_logic PASSED [  9%]
+tests/test_data_model.py::test_grain_no_duplicate_keys PASSED            [ 13%]
+tests/test_data_model.py::test_referential_integrity PASSED              [ 18%]
+tests/test_data_model.py::test_settlement_reconciliation PASSED          [ 22%]
+tests/test_pipeline.py::test_pipeline_is_incremental PASSED              [ 27%]
+tests/test_api.py::test_200_valid_request PASSED                         [ 31%]
+tests/test_api.py::test_400_invalid_date PASSED                          [ 36%]
+tests/test_api.py::test_404_unknown_merchant PASSED                      [ 40%]
+tests/test_api.py::test_422_invalid_parameter PASSED                     [ 45%]
+tests/test_business_rules.py::test_successful_transaction PASSED         [ 50%]
+tests/test_business_rules.py::test_failed_transaction_is_not_counted_in_kpis PASSED [ 54%]
+tests/test_business_rules.py::test_duplicate_event_is_rejected PASSED    [ 59%]
+tests/test_business_rules.py::test_missing_merchant_is_quarantined PASSED [ 63%]
+tests/test_business_rules.py::test_unmatched_settlement_is_quarantined PASSED [ 68%]
+tests/test_business_rules.py::test_negative_settlement_is_quarantined PASSED [ 72%]
+tests/test_business_rules.py::test_late_event_is_kept_with_a_warning PASSED [ 77%]
+tests/test_business_rules.py::test_settlement_calculation_and_gap PASSED [ 81%]
+tests/test_business_rules.py::test_multiple_settlements_do_not_inflate_the_settlement_rate PASSED [ 86%]
+tests/test_business_rules.py::test_sla_is_missed_when_settled_after_30_minutes PASSED [ 90%]
+tests/test_security.py::test_api_needs_a_valid_key PASSED                [ 95%]
+tests/test_security.py::test_sql_injection_is_blocked PASSED             [100%]
+
+- generated xml file: C:\Users\Administrator\Desktop\capstone-2\day2\evidence\01_test_results.xml -
+============================= 22 passed in 20.81s =============================

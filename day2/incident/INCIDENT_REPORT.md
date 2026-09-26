@@ -1,31 +1,35 @@
 # Incident report – settlement rate above 100 % after the V2 release
 
-> Fill every `[ … ]` with YOUR times and outputs (GUIDE.md step 7). The brief says the numbers must come
-> from your own run. The values already written are what this dataset produces.
+> All times and numbers below are from our own run on 26-09-2026 (evidence in `incident/evidence/`).
+> Only **Owner** and **Due date** are left for you to fill in.
 
 ## 1. Incident timeline
-| Time | Event | Evidence |
+Real times from this run, taken from `evidence/00_timeline_log.txt` and `../evidence/07_blue_green_status.txt`.
+
+| Time (26-09-2026) | Event | Evidence |
 |---|---|---|
-| [hh:mm] | V2 (2.0.0) deployed to GREEN, pre-cutover checks passed | `evidence/08`, `09` |
-| [hh:mm] | Blue-green cutover: 100 % traffic → GREEN | `evidence/07_blue_green_status.txt` |
-| [hh:mm] | Faulty V2 release (2.0.1) replaces GREEN | `incident/evidence/01_*` |
-| [hh:mm] | KPI anomaly detected: settlement rate **103.98 %** on the dashboard | `incident/evidence/02_*` |
-| [hh:mm] | Investigation started (V1 vs V2 compared) | `incident/evidence/03_*` |
-| [hh:mm] | Root cause identified | this report, section 4 |
-| [hh:mm] | Rollback initiated: `switch.ps1 blue` | `evidence/07_blue_green_status.txt` |
-| [hh:mm] | V1 restored (100 % traffic → BLUE) | `/health` shows version 1.0.0 |
-| [hh:mm] | Smoke tests passed | `incident/evidence/05_*` |
-| [hh:mm] | Business KPI reconciled: settlement rate **93.72 %** | `incident/evidence/06_*` |
+| 21:41:52 | V2 **2.0.0** validated on GREEN and cut over: 100 % traffic → GREEN | `../evidence/07`, `08`, `09` |
+| 22:05:24 | Faulty V2 release **2.0.1** deployed to GREEN (live) | `incident/evidence/00_timeline_log.txt` |
+| 22:06:25 | **KPI anomaly detected**: settlement rate **103.98 %** (baseline 93.72 %), `/health` still 200 | `01_health_still_ok.txt`, `02_smoke_test_FAIL.txt`, dashboard screenshot |
+| 22:06:35 | Investigation started: previous (BLUE V1) vs current (GREEN V2 2.0.1) | `04_v1_vs_v2_summary.txt`, `05_version_and_config.txt` |
+| 22:06:40 | **Root cause identified**: join before aggregation (A), `settlement_db_v2` (C), 0–100 guard removed (D). B checked: not present. | `03_reconciliation_FAIL.txt`, `06_defect_B_check.txt`, `07_code_diff_gold_sql.txt` |
+| 22:06–22:13 | Evidence captured (screenshots) while production was still faulty | screenshots |
+| 22:13:39 | **Decision: rollback**. Rollback initiated (`switch.ps1 blue`) | `09_rollback.txt` |
+| 22:13:42 | **V1 restored**: 100 % traffic → BLUE (3 s after the rollback started) | `../evidence/07_blue_green_status.txt` |
+| 22:13:45 | **Smoke tests passed** (version 1.0.0, 93.72 %) | `10_smoke_after_rollback_PASS.txt` |
+| 22:13:51 | **Business KPI reconciled**: 93.72 % = baseline. Production restored. | `11_reconciliation_after_rollback_PASS.txt` |
+
+**Time to detect:** ~1 min after the faulty release · **time to restore (rollback):** 3 s · **total impact:** 22:05:24 → 22:13:42 (~8 min, most of it spent deliberately capturing evidence)
 
 ## 2. Incident report
 | Field | Value |
 |---|---|
-| **Incident ID** | INC-[yyyymmdd]-001 |
-| **Date** | [date] |
+| **Incident ID** | INC-20260926-001 |
+| **Date** | 26-09-2026 |
 | **Application** | Settlement Intelligence Platform (settlement-api) |
 | **Production version** | 2.0.1 on GREEN (faulty) → rolled back to 1.0.0 on BLUE |
 | **What happened?** | After the blue-green cutover, the dashboard showed a settlement rate of **103.98 %** (baseline **93.72 %**). 21 merchants showed a settled amount greater than their successful transaction amount. The API still returned **HTTP 200**. |
-| **Business impact** | Settlement Rate, Settlement Gap and Merchant Exceptions were wrong. The gap looked **negative** (more settled than paid), so Operations would have stopped chasing ₹25.95 lakh of really unsettled money, and the exception list dropped from 11 to 8 merchants. Wrong financial figures in production = high severity. |
+| **Business impact** | Settlement Rate, Settlement Gap and Merchant Exceptions were wrong. The gap looked **negative** (more settled than paid), so Operations would have stopped chasing ₹25.95 lakh of really unsettled money, the exception list dropped from 11 to 8 merchants and "risky merchants" (KPI 5) from 5 to 3. V2 showed a settlement gap of **−₹16.47 lakh** instead of +₹25.95 lakh. Wrong financial figures in production = high severity. |
 | **Detection method** | Business smoke test (`smoke_test.py`: rate must be 0–100 and equal the reconciled baseline) and KPI reconciliation (`common.reconcile`). **`/health` did NOT detect it** (still 200). |
 | **Technical root cause** | Defect A: the V2 Gold query joins `fact_transaction` to `fact_settlement` **before** aggregating, so a transaction with two settlement rows is counted twice (settled amount 42,988,864.94 instead of 38,746,903.53). Defect D: V2 removed the 0–100 guard from the KPI calculation and the API contract, so the impossible value reached users. Defect C: V2 reads `settlement_db_v2.duckdb` instead of the approved database. |
 | **Problem type** | query / data-model (A), application (D), configuration (C). Not an infrastructure failure. |

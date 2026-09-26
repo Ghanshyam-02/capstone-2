@@ -1,0 +1,34 @@
+﻿diff --git "a/..\\..\\day1\\sql\\05_silver_to_gold.sql" "b/..\\incident\\v2-defects\\sql\\05_silver_to_gold.sql"
+index 5550b6d..87bb61f 100644
+--- "a/..\\..\\day1\\sql\\05_silver_to_gold.sql"
++++ "b/..\\incident\\v2-defects\\sql\\05_silver_to_gold.sql"
+@@ -80,12 +80,24 @@ WHERE s.load_id > getvariable('wm');
+ 
+ DELETE FROM gold.agg_merchant_daily WHERE txn_date IN (SELECT d FROM changed_dates);
+ 
++-- ⚠️ INJECTED DEFECT A (grain): Version 2 "simplified" the settled amount by joining
++--    FACT_TRANSACTION to FACT_SETTLEMENT BEFORE aggregating. A transaction with two
++--    settlement rows (8,000 + 2,000) now adds its full amount TWICE -> settled amount
++--    inflated -> settlement rate above 100 %.
+ INSERT INTO gold.agg_merchant_daily
+-SELECT txn_date, merchant_id, MAX(merchant_name), MAX(risk_level),
+-       COUNT(*), SUM(amount), SUM(settled_amount), SUM(sla_met)
+-FROM gold.v_txn_settlement
+-WHERE txn_date IN (SELECT d FROM changed_dates)
+-GROUP BY txn_date, merchant_id;
++SELECT d.txn_date, d.merchant_id, d.merchant_name, d.risk_level, d.success_count, d.success_amount,
++       COALESCE(s.settled_amount, 0), d.sla_met_count
++FROM (SELECT txn_date, merchant_id, MAX(merchant_name) AS merchant_name, MAX(risk_level) AS risk_level,
++             COUNT(*) AS success_count, SUM(amount) AS success_amount, SUM(sla_met) AS sla_met_count
++      FROM gold.v_txn_settlement
++      WHERE txn_date IN (SELECT d FROM changed_dates)
++      GROUP BY txn_date, merchant_id) d
++LEFT JOIN (SELECT CAST(t.transaction_ts AS DATE) AS txn_date, t.merchant_id, SUM(t.amount) AS settled_amount
++           FROM gold.fact_transaction t
++           JOIN gold.fact_settlement s ON s.transaction_id = t.transaction_id      -- join BEFORE aggregation
++           WHERE t.status = 'SUCCESS' AND s.settlement_status = 'SETTLED'
++           GROUP BY 1, 2) s
++  ON s.txn_date = d.txn_date AND s.merchant_id = d.merchant_id;
+ 
+ -- 7. Remember how far Gold got
+ UPDATE audit.watermark

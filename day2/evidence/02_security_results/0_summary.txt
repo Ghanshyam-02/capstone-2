@@ -1,0 +1,5 @@
+﻿Security gate  2026-09-26 01:18:31   image=settlement-api:v1
+  SAST (Bandit, HIGH severity)      : PASS
+  Secret scan (Gitleaks)            : PASS - no secrets found
+  SCA (pip-audit)                   : PASS - no known vulnerabilities
+  Container scan (Trivy, CRITICAL)  : PASS - 0 critical

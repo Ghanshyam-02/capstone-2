@@ -1,0 +1,201 @@
+Started by user unknown or anonymous
+Obtained day2/Jenkinsfile from git https://github.com/Ghanshyam-02/capstone-2.git
+[Pipeline] Start of Pipeline
+[Pipeline] node
+Running on Jenkins in /var/jenkins_home/workspace/settelment-platform
+[Pipeline] {
+[Pipeline] stage
+[Pipeline] { (Declarative: Checkout SCM)
+[Pipeline] checkout
+Selected Git installation does not exist. Using Default
+The recommended git tool is: NONE
+No credentials specified
+ > git rev-parse --resolve-git-dir /var/jenkins_home/workspace/settelment-platform/.git # timeout=10
+Fetching changes from the remote Git repository
+ > git config remote.origin.url https://github.com/Ghanshyam-02/capstone-2.git # timeout=10
+Fetching upstream changes from https://github.com/Ghanshyam-02/capstone-2.git
+ > git --version # timeout=10
+ > git --version # 'git version 2.47.3'
+ > git fetch --tags --force --progress -- https://github.com/Ghanshyam-02/capstone-2.git +refs/heads/*:refs/remotes/origin/* # timeout=10
+ > git rev-parse refs/remotes/origin/main^{commit} # timeout=10
+Checking out Revision daecef79c2411bf334ba5766c004f5e16611704d (refs/remotes/origin/main)
+ > git config core.sparsecheckout # timeout=10
+ > git checkout -f daecef79c2411bf334ba5766c004f5e16611704d # timeout=10
+Commit message: "Jenkinsfile: upgrade pip in the venv and stop '| tee' hiding pip-audit failures"
+ > git rev-list --no-walk 429b3780f08653e7b27fff5e20beee8954bef44a # timeout=10
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] withEnv
+[Pipeline] {
+[Pipeline] withEnv
+[Pipeline] {
+[Pipeline] stage
+[Pipeline] { (Checkout)
+[Pipeline] checkout
+Selected Git installation does not exist. Using Default
+The recommended git tool is: NONE
+No credentials specified
+ > git rev-parse --resolve-git-dir /var/jenkins_home/workspace/settelment-platform/.git # timeout=10
+Fetching changes from the remote Git repository
+ > git config remote.origin.url https://github.com/Ghanshyam-02/capstone-2.git # timeout=10
+Fetching upstream changes from https://github.com/Ghanshyam-02/capstone-2.git
+ > git --version # timeout=10
+ > git --version # 'git version 2.47.3'
+ > git fetch --tags --force --progress -- https://github.com/Ghanshyam-02/capstone-2.git +refs/heads/*:refs/remotes/origin/* # timeout=10
+ > git rev-parse refs/remotes/origin/main^{commit} # timeout=10
+Checking out Revision daecef79c2411bf334ba5766c004f5e16611704d (refs/remotes/origin/main)
+ > git config core.sparsecheckout # timeout=10
+ > git checkout -f daecef79c2411bf334ba5766c004f5e16611704d # timeout=10
+Commit message: "Jenkinsfile: upgrade pip in the venv and stop '| tee' hiding pip-audit failures"
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (Install Dependencies)
+[Pipeline] sh
++ python3 -m venv .venv
++ .venv/bin/pip install -q --upgrade pip
+[Pipeline] sh
++ .venv/bin/pip install -q -r day1/requirements-dev.txt bandit pip-audit
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (Run Tests)
+[Pipeline] sh
++ cd day1
++ ../.venv/bin/pytest --junitxml=test-report.xml
+============================= test session starts ==============================
+platform linux -- Python 3.13.5, pytest-9.1.1, pluggy-1.6.0
+rootdir: /var/jenkins_home/workspace/settelment-platform/day1
+configfile: pytest.ini
+testpaths: tests
+plugins: anyio-4.15.1
+collected 22 items
+
+tests/test_api.py ....                                                   [ 18%]
+tests/test_business_rules.py ..........                                  [ 63%]
+tests/test_data_model.py ...                                             [ 77%]
+tests/test_pipeline.py .                                                 [ 81%]
+tests/test_security.py ..                                                [ 90%]
+tests/test_unit_kpi.py ..                                                [100%]
+
+=============================== warnings summary ===============================
+../.venv/lib/python3.13/site-packages/fastapi/testclient.py:1
+  /var/jenkins_home/workspace/settelment-platform/.venv/lib/python3.13/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+- generated xml file: /var/jenkins_home/workspace/settelment-platform/day1/test-report.xml -
+================== 22 passed, 1 warning in 124.65s (0:02:04) ===================
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (Security Checks)
+[Pipeline] sh
++ .venv/bin/bandit -r day1 -x day1/tests -f txt -o bandit.txt
+[main]	INFO	profile include tests: None
+[main]	INFO	profile exclude tests: None
+[main]	INFO	cli include tests: None
+[main]	INFO	cli exclude tests: None
+[main]	INFO	running on Python 3.13.5
+[text]	INFO	Text output written to file: bandit.txt
++ true
+[Pipeline] sh
++ .venv/bin/bandit -r day1 -x day1/tests -lll -q
+[Pipeline] sh
++ .venv/bin/pip-audit
++ status=0
++ cat pip-audit.txt
+No known vulnerabilities found
++ exit 0
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (Build Docker Image)
+[Pipeline] sh
++ docker build -t settlement-api:jenkins-2 day1
+DEPRECATED: The legacy builder is deprecated and will be removed in a future release.
+            Install the buildx component to build images with BuildKit:
+            https://docs.docker.com/go/buildx/
+
+Sending build context to Docker daemon   1.47MB
+Step 1/18 : FROM python:3.12-slim
+ ---> 2f17fc044b57
+Step 2/18 : ARG APP_VERSION=1.0.0
+ ---> Using cache
+ ---> 8ba50ded83fa
+Step 3/18 : ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 APP_VERSION=$APP_VERSION
+ ---> Using cache
+ ---> 92f765fa9c72
+Step 4/18 : WORKDIR /app
+ ---> Using cache
+ ---> 2b0976e39964
+Step 5/18 : COPY requirements.txt .
+ ---> Using cache
+ ---> 11b9cef13a5e
+Step 6/18 : RUN pip install --no-cache-dir -r requirements.txt
+ ---> Using cache
+ ---> c7696f65172f
+Step 7/18 : COPY common/ common/
+ ---> Using cache
+ ---> 8faccf585567
+Step 8/18 : COPY pipeline/ pipeline/
+ ---> Using cache
+ ---> 942bc32307ae
+Step 9/18 : COPY sql/ sql/
+ ---> Using cache
+ ---> f0632691f9b3
+Step 10/18 : COPY data/raw/ data/raw/
+ ---> Using cache
+ ---> d8b4bfafa72f
+Step 11/18 : COPY api/ api/
+ ---> Using cache
+ ---> 14aba9494f2f
+Step 12/18 : COPY frontend/ frontend/
+ ---> Using cache
+ ---> 6854324c951a
+Step 13/18 : RUN python -m pipeline.run_pipeline
+ ---> Using cache
+ ---> 0eb42194364c
+Step 14/18 : RUN useradd --create-home appuser && chown -R appuser /app/data
+ ---> Using cache
+ ---> 63ca275bebab
+Step 15/18 : USER appuser
+ ---> Using cache
+ ---> 5baf78c14d22
+Step 16/18 : EXPOSE 8000
+ ---> Using cache
+ ---> a9568eba492d
+Step 17/18 : HEALTHCHECK --interval=30s --timeout=5s --retries=3   CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status == 200 else 1)"
+ ---> Using cache
+ ---> 806d5b51ae58
+Step 18/18 : CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+ ---> Using cache
+ ---> 54107fac0ee5
+Successfully built 54107fac0ee5
+Successfully tagged settlement-api:jenkins-2
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (Publish Artifact)
+[Pipeline] sh
++ docker image inspect settlement-api:jenkins-2 --format {{.Id}}
++ echo settlement-api:jenkins-2
+[Pipeline] archiveArtifacts
+Archiving artifacts
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (Declarative: Post Actions)
+[Pipeline] junit
+Recording test results
+[Checks API] No suitable checks publisher found.
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] }
+[Pipeline] // withEnv
+[Pipeline] }
+[Pipeline] // withEnv
+[Pipeline] }
+[Pipeline] // node
+[Pipeline] End of Pipeline
+Finished: SUCCESS

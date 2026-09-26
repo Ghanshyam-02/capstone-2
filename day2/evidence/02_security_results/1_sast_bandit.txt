@@ -1,0 +1,63 @@
+Run started:2026-09-25 19:45:04.193869+00:00
+
+Test results:
+>> Issue: [B608:hardcoded_sql_expressions] Possible SQL injection vector through string-based query construction.
+   Severity: Medium   Confidence: Medium
+   CWE: CWE-89 (https://cwe.mitre.org/data/definitions/89.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html
+   Location: day1\pipeline\ingest.py:40:18
+39	            con.execute(
+40	                f"INSERT INTO bronze.{source} ({col_list}, source_file, load_id) "
+41	                f"SELECT {col_list}, ?, ? FROM read_csv(?, header = true, all_varchar = true)",
+42	                [path.name, load_id, str(path)])
+
+--------------------------------------------------
+>> Issue: [B608:hardcoded_sql_expressions] Possible SQL injection vector through string-based query construction.
+   Severity: Medium   Confidence: Medium
+   CWE: CWE-89 (https://cwe.mitre.org/data/definitions/89.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html
+   Location: day1\pipeline\ingest.py:43:33
+42	                [path.name, load_id, str(path)])
+43	            rows = con.execute(f"SELECT COUNT(*) FROM bronze.{source} WHERE load_id = ?", [load_id]).fetchone()[0]
+44	            con.execute("INSERT INTO audit.loaded_files (file_name, load_id, row_count) VALUES (?, ?, ?)",
+
+--------------------------------------------------
+>> Issue: [B608:hardcoded_sql_expressions] Possible SQL injection vector through string-based query construction.
+   Severity: Medium   Confidence: Medium
+   CWE: CWE-89 (https://cwe.mitre.org/data/definitions/89.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html
+   Location: day1\pipeline\run_pipeline.py:45:53
+44	        for table in ["fact_transaction", "fact_settlement", "fact_payment_event", "agg_merchant_daily"]:
+45	            print(f"  [gold] {table}: {con.execute(f'SELECT COUNT(*) FROM gold.{table}').fetchone()[0]:,} rows")
+46	
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html
+   Location: day1\pipeline\run_pipeline.py:55:8
+54	            con.execute("ROLLBACK")          # undo a half-finished SQL file
+55	        except Exception:
+56	            pass                             # nothing was open
+57	        con.execute("UPDATE audit.pipeline_runs SET finished_at = current_timestamp, status = 'FAILED', "
+
+--------------------------------------------------
+
+Code scanned:
+	Total lines of code: 365
+	Total lines skipped (#nosec): 0
+	Total potential issues skipped due to specifically being disabled (e.g., #nosec BXXX): 0
+
+Run metrics:
+	Total issues (by severity):
+		Undefined: 0
+		Low: 1
+		Medium: 3
+		High: 0
+	Total issues (by confidence):
+		Undefined: 0
+		Low: 0
+		Medium: 3
+		High: 1
+Files skipped (0):

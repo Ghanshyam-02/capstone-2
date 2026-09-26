@@ -1,0 +1,3 @@
+﻿blue : version 1.0.0  database_file settlement.duckdb
+green: version 2.0.1  database_file settlement_db_v2.duckdb
+V1 exceptions: 11   V2 exceptions: 8

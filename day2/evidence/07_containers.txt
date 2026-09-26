@@ -1,0 +1,4 @@
+﻿SERVICE   IMAGE               STATUS                    PORTS
+blue      settlement-api:v1   Up 2 minutes (healthy)    0.0.0.0:8001->8000/tcp, [::]:8001->8000/tcp
+green     settlement-api:v2   Up 50 seconds (healthy)   0.0.0.0:8002->8000/tcp, [::]:8002->8000/tcp
+lb        nginx:alpine        Up 2 minutes              0.0.0.0:8090->80/tcp, [::]:8090->80/tcp

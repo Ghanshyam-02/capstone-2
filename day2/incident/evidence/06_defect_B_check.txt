@@ -1,0 +1,1 @@
+﻿Daily transaction_amount identical for all 30 days: True  (dates not shifted -> defect B not present)

@@ -1,0 +1,11 @@
+﻿Smoke test http://localhost:8090   version=1.0.0   live colour=blue   2026-09-26 22:13:45
+  PASS  GET /health -> 200                         200, 523 ms
+  PASS  GET /settlement-summary -> 200             200
+  PASS    valid JSON with settlement_rate          93.72
+  PASS    response time < 500 ms                   453 ms
+  PASS    settlement_rate between 0 and 100        93.72 %
+  PASS    settlement_rate = reconciled baseline    93.72 % vs expected 93.72 %
+  PASS  GET /merchant-exceptions -> 200            200
+  PASS    valid JSON list of merchants             11 merchants
+  PASS    every merchant rate between 0 and 100    
+RESULT: PASS

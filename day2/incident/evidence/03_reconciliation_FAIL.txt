@@ -1,0 +1,6 @@
+﻿KPI reconciliation 2026-09-01 .. 2026-09-30
+  PASS  successful amount: facts = KPI table     41342329.17 vs 41342329.17
+  FAIL  settled amount:    facts = KPI table     38746903.53 vs 42988864.94
+  FAIL  settlement rate:   facts = KPI table     93.72 % vs 103.98 %
+  FAIL  no merchant settled > successful         M100, M101, M102, M103, M105, M107, M109, M110, M111, M112, M113, M114, M115, M116, M118, M119, M120, M121, M122, M123, M124
+RESULT: FAIL   (expected settlement rate = 93.72 %)

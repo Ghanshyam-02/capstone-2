@@ -1,0 +1,12 @@
+Incident timeline log (real times from this run)
+2026-09-26 21:41:52  100% traffic -> green   [from evidence 07: V2 2.0.0 cutover]
+2026-09-26 22:04:55  Faulty V2 release 2.0.1 built (settlement-api:v2-incident)
+2026-09-26 22:05:24  Faulty V2 2.0.1 deployed to GREEN, which is LIVE (100% traffic)
+2026-09-26 22:06:25  KPI anomaly detected: dashboard settlement rate 103.98% (baseline 93.72%)
+2026-09-26 22:06:35  Investigation started: previous production (BLUE V1) vs current (GREEN V2 2.0.1)
+2026-09-26 22:06:40  Root cause identified: V2 joins settlements before aggregation (A), wrong database settlement_db_v2 (C), 0-100 guard removed (D)
+2026-09-26 22:13:39  Decision: ROLLBACK to BLUE V1 (wrong money figures live, V1 proven and one switch away)
+2026-09-26 22:13:39  Rollback initiated: switch.ps1 blue
+2026-09-26 22:13:42  V1 restored: 100% traffic -> BLUE
+2026-09-26 22:13:45  Smoke tests passed after rollback
+2026-09-26 22:13:51  Business KPI reconciled: settlement rate 93.72% = baseline. Production restored.

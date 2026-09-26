@@ -1,0 +1,1 @@
+2026-09-26 22:13:42  100% traffic -> blue   (switch.ps1 blue: nginx reloaded, traffic back to V1)

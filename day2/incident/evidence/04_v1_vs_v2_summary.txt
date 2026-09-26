@@ -1,0 +1,13 @@
+﻿
+KPI                 V1 blue (previous) V2 green (current)  Same
+---                 ------------------ ------------------  ----
+transaction_count                 3383               3383  True
+transaction_amount         41342329.17        41342329.17  True
+settled_amount             38746903.53        42988864.94 False
+settlement_rate                  93.72             103.98 False
+settlement_gap              2595425.64        -1646535.77 False
+sla_rate                         77.09              77.09  True
+merchant_risk_count                  5                  3 False
+
+
+

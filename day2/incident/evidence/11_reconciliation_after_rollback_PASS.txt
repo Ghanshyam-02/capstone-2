@@ -1,0 +1,6 @@
+﻿KPI reconciliation 2026-09-01 .. 2026-09-30
+  PASS  successful amount: facts = KPI table     41342329.17 vs 41342329.17
+  PASS  settled amount:    facts = KPI table     38746903.53 vs 38746903.53
+  PASS  settlement rate:   facts = KPI table     93.72 % vs 93.72 %
+  PASS  no merchant settled > successful         none
+RESULT: PASS   (expected settlement rate = 93.72 %)
