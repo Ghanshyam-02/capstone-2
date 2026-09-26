@@ -12,7 +12,8 @@ pipeline {
     }
     stage('Install Dependencies') {
       steps {
-        sh 'python3 -m venv .venv && .venv/bin/pip install -q -r day1/requirements-dev.txt bandit pip-audit'
+        sh 'python3 -m venv .venv && .venv/bin/pip install -q --upgrade pip'      // latest pip (older pip has known CVEs)
+        sh '.venv/bin/pip install -q -r day1/requirements-dev.txt bandit pip-audit'
       }
     }
     stage('Run Tests') {
@@ -22,7 +23,9 @@ pipeline {
       steps {
         sh '.venv/bin/bandit -r day1 -x day1/tests -f txt -o bandit.txt || true'   // full report
         sh '.venv/bin/bandit -r day1 -x day1/tests -lll -q'                        // block on HIGH
-        sh '.venv/bin/pip-audit -r day1/requirements.txt | tee pip-audit.txt'      // block on known CVEs
+        // SCA: audit every library installed in .venv. Fails the build on known CVEs
+        // (the exit code is kept - a "| tee" pipe would hide a failure).
+        sh '.venv/bin/pip-audit > pip-audit.txt 2>&1; status=$?; cat pip-audit.txt; exit $status'
       }
     }
     stage('Build Docker Image') {
