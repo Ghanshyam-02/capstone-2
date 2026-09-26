@@ -103,7 +103,10 @@ deploy_dev:
   needs: [container_scan]
   extends: .main_only
   environment: { name: dev }                       # ENVIRONMENT: shown in Operate > Environments
-  services: [{ name: $IMAGE, alias: app }]
+  services:
+    - name: $IMAGE
+      alias: app
+      variables: { API_KEY: $API_KEY }             # give the protected secret to the app container
   script:
     - for i in $(seq 1 30); do python -c "import urllib.request; urllib.request.urlopen('http://app:8000/health')" && break; sleep 2; done
     - python -c "import urllib.request; print(urllib.request.urlopen('http://app:8000/health').read().decode())" | tee deployment_version.json
@@ -114,8 +117,12 @@ smoke_test:
   stage: smoke_test
   needs: [deploy_dev]
   extends: .main_only
-  services: [{ name: $IMAGE, alias: app }]
+  services:
+    - name: $IMAGE
+      alias: app
+      variables: { API_KEY: $API_KEY }
   script:
+    - '[ -n "$API_KEY" ] || { echo "API_KEY is not set: add it in Settings > CI/CD > Variables (protected) and make sure main is a protected branch"; exit 1; }'
     - for i in $(seq 1 30); do python -c "import urllib.request; urllib.request.urlopen('http://app:8000/health')" && break; sleep 2; done
     - python day2/scripts/smoke_test.py --url http://app:8000 --key "$API_KEY" --expected-rate 93.72 | tee smoke_test.txt
   artifacts: { when: always, paths: [smoke_test.txt] }
